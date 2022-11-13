@@ -1,5 +1,5 @@
 #### This is the official installer
 
-![alt text](https://i.imgur.com/hl0M5mQ.png)
+![alt text](https://i.imgur.com/PRTWyuZ.png)
 
 ``cargo build --release``
