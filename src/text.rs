@@ -2,7 +2,7 @@
 macro_rules! main_message {
     () => {
         r"
-# Welcome to UltraFuck!
+# Welcome to UltraFuck! Installer source code https://github.com/maksqi/uf-installer
 
 Это официальный установщик UltraFuck который поможет тебе установить все нужное для правильной работы чита.
 Установка займет несколько секунд.

@@ -1,15 +1,16 @@
-mod text;
-mod api;
+extern crate winreg;
 
 use std::error::Error;
 use std::io::stdin;
 use std::process::exit;
-use crate::api::{download_file};
 
 use winreg::enums::*;
 use winreg::RegKey;
 
-extern crate winreg;
+use crate::api::download_file;
+
+mod text;
+mod api;
 
 
 fn get_gta_path() -> Result<String, Box<dyn Error>> {
@@ -34,9 +35,9 @@ fn main() {
         1 => println!("{}", choose_installs!()),
         2 => {
             println!("Введите путь к GTA:SA");
-            let mut question_path = String::new();
-            stdin().read_line(&mut question_path).expect("Failed to read line");
-            gta_path = question_path.trim().to_string();
+            let mut path_question = String::new();
+            stdin().read_line(&mut path_question).expect("Failed to read line");
+            gta_path = path_question.trim().to_string();
             println!("{}", choose_installs!());
         }
         3 => exit(0),
@@ -48,7 +49,6 @@ fn main() {
     let input: i32 = question2.trim().parse().expect("Please type a number!");
 
     println!("\n\n-> GTA Path: {}\n\n", gta_path);
-    // gta_path = "C:\\Users\\maks1\\Desktop\\ter".parse().unwrap();
     match input {
         1 => {
             download_file(gta_path.as_str(), "ultrafuck.zip");
@@ -67,7 +67,7 @@ fn main() {
     }
 
     println!("\nPress enter to exit");
-    let mut question3 = String::new();
-    stdin().read_line(&mut question3).expect("Failed to read line");
+    let mut exit_question = String::new();
+    stdin().read_line(&mut exit_question).expect("Failed to read line");
     exit(0);
 }
