@@ -9,6 +9,8 @@ void SetUiScale(float scale);
 float UiScale();
 // Logical pixels -> physical pixels.
 inline float S(float v) { return v * UiScale(); }
+// Snaps a coordinate to the pixel grid (crisp 1 px lines and text).
+inline float Px(float v) { return static_cast<float>(static_cast<int>(v + 0.5f)); }
 
 ImU32 WithAlpha(ImU32 c, float alpha);
 
@@ -19,21 +21,21 @@ void DrawLabel(ImDrawList* dl, ImFont* font, float size, ImVec2 pos, ImU32 color
 std::string EllipsizeLeft(ImFont* font, float size, const std::string& text, float maxWidth);
 std::string EllipsizeRight(ImFont* font, float size, const std::string& text, float maxWidth);
 
-// Pill-shaped tinted label; returns its width.
-float Badge(ImDrawList* dl, ImVec2 pos, const char* text, ImU32 color);
-float BadgeWidth(const char* text);
+// 1 px horizontal / vertical hairline.
+void HLine(ImDrawList* dl, float x0, float x1, float y, ImU32 color);
+void VLine(ImDrawList* dl, float x, float y0, float y1, ImU32 color);
 
-enum class ButtonKind { Primary, Secondary, Ghost, Danger };
+enum class ButtonKind { Primary, Secondary, Ghost };
 bool Button(const char* label, ImVec2 size, ButtonKind kind = ButtonKind::Secondary, bool enabled = true);
 bool IconButton(const char* id, const char* icon, ImVec2 size, ImU32 hoverBg, ImU32 iconColor, ImU32 hoverIconColor);
+// Inline text button (underlined on hover) at the cursor; returns true when clicked.
+bool LinkButton(const char* label, float fontSize, ImU32 color = 0);
 
 void Spinner(ImDrawList* dl, ImVec2 center, float radius, float thickness, ImU32 color);
 void ProgressBar(ImVec2 size, float fraction, bool indeterminate = false);
-// iOS-like switch. Returns true when toggled.
-bool Toggle(const char* id, bool* value, bool enabled = true);
-void IconCircle(ImDrawList* dl, ImVec2 center, float radius, ImU32 color, const char* icon, float iconSize);
-
-// Wrapped text in the current window with a given color and font size.
-void TextWrapped(const char* text, ImU32 color, float size, ImFont* font = nullptr);
+// Square checkbox / round radio mark; the caller owns the clickable area (usually a whole row).
+void DrawCheckbox(ImDrawList* dl, ImVec2 pos, bool checked, bool hovered, bool enabled = true);
+void DrawRadio(ImDrawList* dl, ImVec2 pos, bool selected, bool hovered);
+inline constexpr float kMarkSize = 16.f;  // logical size of a checkbox / radio
 
 }  // namespace uf::ui

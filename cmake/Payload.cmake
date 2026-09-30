@@ -30,4 +30,4 @@ add_custom_target(uf_payload DEPENDS "${UF_PAYLOAD_ZIP}" "${UF_MANIFEST_H}")
 set(UF_RES_DIR "${CMAKE_SOURCE_DIR}/res")
 configure_file("${UF_RES_DIR}/resources.rc.in" "${UF_GEN_DIR}/resources.rc" @ONLY)
 set_source_files_properties("${UF_GEN_DIR}/resources.rc" PROPERTIES
-    OBJECT_DEPENDS "${UF_PAYLOAD_ZIP};${UF_RES_DIR}/app.ico;${UF_RES_DIR}/resource.h;${UF_RES_DIR}/fonts/Inter-Regular.ttf;${UF_RES_DIR}/fonts/Inter-SemiBold.ttf;${UF_RES_DIR}/fonts/fa-solid-900.ttf")
+    OBJECT_DEPENDS "${UF_PAYLOAD_ZIP};${UF_RES_DIR}/app.ico;${UF_RES_DIR}/resource.h;${UF_RES_DIR}/fonts/IBMPlexSans-Regular.ttf;${UF_RES_DIR}/fonts/IBMPlexSans-SemiBold.ttf;${UF_RES_DIR}/fonts/IBMPlexMono-Regular.ttf;${UF_RES_DIR}/fonts/Phosphor.ttf;${UF_RES_DIR}/fonts/Phosphor-Bold.ttf")

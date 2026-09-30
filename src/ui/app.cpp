@@ -271,7 +271,7 @@ bool App::Animating() const {
 }
 
 bool App::CaptionHit(POINT pt, const RECT& rc) const {
-    return pt.y >= 0 && pt.y < S(kTitleBarHeight) && pt.x < rc.right - S(kTitleBarHeight * 2 + 4);
+    return pt.y >= 0 && pt.y < S(kTitleBarHeight) && pt.x < rc.right - S(kCaptionButtonWidth * 2);
 }
 
 bool App::ReadyForScreenshot() const {

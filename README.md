@@ -49,13 +49,13 @@
 
 ```
 src/core/   анализ папки, план, установка, поиск игр, Arizona, шрифты, DirectX, UAC (без UI)
-src/ui/     окно Win32 + Direct3D 9Ex + Dear ImGui 1.92 (тёмная тема, свой заголовок, Per-Monitor DPI)
+src/ui/     окно Win32 + Direct3D 9Ex + Dear ImGui 1.92 (чёрно-белая тема, свой заголовок, Per-Monitor DPI)
 src/cli/    uf-cli.exe — то же ядро из консоли (для тестов)
 tests/      doctest: юнит-тесты + установка/откат в настоящую временную папку
 tools/      упаковщик payload, генератор иконки, фикстуры, аудит импортов
 ```
 
-Библиотеки: Dear ImGui 1.92.9b, miniz 3.1.2, nlohmann/json 3.12, doctest 2.4.12. Все они скачиваются CMake с проверкой SHA-256 в `.deps/`. Шрифты интерфейса: Inter и Font Awesome 6 Free (`res/fonts`, лицензия OFL).
+Библиотеки: Dear ImGui 1.92.9b, miniz 3.1.2, nlohmann/json 3.12, doctest 2.4.12. Все они скачиваются CMake с проверкой SHA-256 в `.deps/`. Шрифты интерфейса лежат в `res/fonts`: IBM Plex Sans и IBM Plex Mono (лицензия OFL), иконки Phosphor 2.1 (лицензия MIT).
 
 ## Проверка и отладка
 

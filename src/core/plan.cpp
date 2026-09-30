@@ -181,7 +181,7 @@ InstallPlan BuildPlan(const FolderReport& r, const Options& o) {
     {
         PlanItem& it = b.Add(ItemId::Cleo, "CLEO");
         if (r.cleo) {
-            it.status = r.cleo->version.empty() ? "установлен" : "CLEO " + r.cleo->version;
+            it.status = r.cleo->version.empty() ? "установлен" : r.cleo->version;
         } else if (az) {
             it.state = ItemState::Error;
             it.status = "не найден";
@@ -202,7 +202,7 @@ InstallPlan BuildPlan(const FolderReport& r, const Options& o) {
     {
         PlanItem& it = b.Add(ItemId::Sampfuncs, "SAMPFUNCS");
         if (r.sampfuncs) {
-            it.status = r.sampfuncs->version.empty() ? "установлен" : "SAMPFUNCS " + r.sampfuncs->version;
+            it.status = r.sampfuncs->version.empty() ? "установлен" : r.sampfuncs->version;
             auto targets = SampVersionsFromText(r.sampfuncs->target);
             if (r.hasSamp && r.samp != SampVersion::Unknown && !targets.empty() &&
                 std::find(targets.begin(), targets.end(), r.samp) == targets.end()) {
@@ -248,7 +248,7 @@ InstallPlan BuildPlan(const FolderReport& r, const Options& o) {
     {
         PlanItem& it = b.Add(ItemId::MoonLoader, "MoonLoader");
         if (r.moonloader) {
-            it.status = r.moonloader->version.empty() ? "установлен" : "MoonLoader " + r.moonloader->version;
+            it.status = r.moonloader->version.empty() ? "установлен" : r.moonloader->version;
             int major = MoonLoaderMajor(r.moonloader->version);
             if (major >= 0 && major < 26) {
                 it.detail = std::format("Устаревшая версия — скрипту нужен MoonLoader 026+. Будет установлен {}.", gen::kMoonLoaderVersion);
@@ -398,11 +398,11 @@ InstallPlan BuildPlan(const FolderReport& r, const Options& o) {
 
     // ---- DirectX 9 (d3dx9_43.dll)
     {
-        PlanItem& it = b.Add(ItemId::DirectX, "DirectX 9 (d3dx9_43.dll)");
+        PlanItem& it = b.Add(ItemId::DirectX, "DirectX 9");
         if (r.d3dx9) {
-            it.status = "найден";
+            it.status = "d3dx9_43.dll найден";
         } else {
-            it.status = "не найден";
+            it.status = "нет d3dx9_43.dll";
             it.detail = "Будет скачан и запущен официальный веб-установщик DirectX от Microsoft (нужен интернет).";
             it.admin = true;
             if (b.Optional(it, true, ItemState::Install))

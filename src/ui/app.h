@@ -18,8 +18,11 @@ namespace uf::ui {
 
 inline constexpr UINT WM_APP_WAKE = WM_APP + 1;
 inline constexpr float kTitleBarHeight = 44.f;  // logical px
-inline constexpr float kWindowWidth = 920.f;
-inline constexpr float kWindowHeight = 660.f;
+inline constexpr float kCaptionButtonWidth = 46.f;  // minimize / close
+inline constexpr float kWindowWidth = 900.f;
+inline constexpr float kWindowHeight = 636.f;
+// Everything is drawn 10% larger than the system DPI alone would give: easier to read.
+inline constexpr float kUiZoom = 1.1f;
 
 enum class Screen { Select, Analysis, Progress, Done };
 

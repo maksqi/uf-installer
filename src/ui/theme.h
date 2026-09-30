@@ -3,40 +3,42 @@
 
 namespace uf::ui {
 
+// Monochrome palette: near-black background, white as the only accent.
+// Color is reserved for problems: amber for warnings, red for errors.
 namespace col {
-inline constexpr ImU32 Bg = IM_COL32(13, 15, 20, 255);
-inline constexpr ImU32 TitleBar = IM_COL32(17, 19, 25, 255);
-inline constexpr ImU32 Surface = IM_COL32(22, 25, 33, 255);
-inline constexpr ImU32 SurfaceHover = IM_COL32(28, 32, 42, 255);
-inline constexpr ImU32 SurfaceActive = IM_COL32(35, 40, 52, 255);
-inline constexpr ImU32 Border = IM_COL32(40, 45, 58, 255);
-inline constexpr ImU32 Text = IM_COL32(232, 234, 240, 255);
-inline constexpr ImU32 TextDim = IM_COL32(150, 157, 172, 255);
-inline constexpr ImU32 TextFaint = IM_COL32(100, 107, 122, 255);
-inline constexpr ImU32 Accent = IM_COL32(139, 92, 246, 255);
-inline constexpr ImU32 AccentHover = IM_COL32(157, 120, 250, 255);
-inline constexpr ImU32 AccentActive = IM_COL32(118, 72, 226, 255);
-inline constexpr ImU32 Ok = IM_COL32(34, 197, 94, 255);
-inline constexpr ImU32 Warn = IM_COL32(245, 158, 11, 255);
-inline constexpr ImU32 Err = IM_COL32(239, 68, 68, 255);
-inline constexpr ImU32 Info = IM_COL32(59, 130, 246, 255);
-inline constexpr ImU32 Muted = IM_COL32(100, 116, 139, 255);
+inline constexpr ImU32 Bg = IM_COL32(12, 12, 12, 255);
+inline constexpr ImU32 Hover = IM_COL32(20, 20, 20, 255);       // row / button hover
+inline constexpr ImU32 Selected = IM_COL32(26, 26, 26, 255);    // selected row, pressed button
+inline constexpr ImU32 Line = IM_COL32(36, 36, 36, 255);        // hairlines, tracks
+inline constexpr ImU32 Control = IM_COL32(64, 64, 64, 255);     // control outlines
+inline constexpr ImU32 ControlHover = IM_COL32(110, 110, 110, 255);
+inline constexpr ImU32 Text = IM_COL32(240, 240, 240, 255);
+inline constexpr ImU32 TextDim = IM_COL32(172, 172, 172, 255);
+inline constexpr ImU32 TextFaint = IM_COL32(128, 128, 128, 255);
+inline constexpr ImU32 White = IM_COL32(255, 255, 255, 255);
+inline constexpr ImU32 WhiteHover = IM_COL32(225, 225, 225, 255);
+inline constexpr ImU32 WhiteActive = IM_COL32(200, 200, 200, 255);
+inline constexpr ImU32 OnWhite = IM_COL32(12, 12, 12, 255);     // text on white
+inline constexpr ImU32 Warn = IM_COL32(230, 170, 70, 255);
+inline constexpr ImU32 Err = IM_COL32(236, 92, 92, 255);
+inline constexpr ImU32 CloseHover = IM_COL32(196, 43, 28, 255);  // Windows 11 close button
 }  // namespace col
 
 struct Fonts {
-    ImFont* regular = nullptr;
-    ImFont* bold = nullptr;
+    ImFont* regular = nullptr;  // IBM Plex Sans + Phosphor
+    ImFont* bold = nullptr;     // IBM Plex Sans SemiBold + Phosphor Bold
+    ImFont* mono = nullptr;     // IBM Plex Mono: paths, versions, log
 };
 Fonts& GetFonts();
 
 // Font sizes (logical pixels, before DPI scaling).
-inline constexpr float kFontBody = 15.f;
-inline constexpr float kFontSmall = 13.f;
-inline constexpr float kFontTiny = 12.f;
-inline constexpr float kFontTitle = 15.5f;
-inline constexpr float kFontHeading = 24.f;
+inline constexpr float kFontBody = 16.f;
+inline constexpr float kFontSmall = 14.f;
+inline constexpr float kFontTiny = 13.5f;
+inline constexpr float kFontMono = 13.5f;
+inline constexpr float kFontHeading = 26.f;
 
-// Loads Inter + Font Awesome from the exe resources (once).
+// Loads the UI fonts from the exe resources (once).
 void LoadFonts();
 // The app logo (IDI_APP icon) as a `px` x `px` texture; nullptr if the icon can't be read.
 ImTextureData* AppLogo(int px);

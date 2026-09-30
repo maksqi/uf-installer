@@ -11,7 +11,7 @@
 
 #include "core/payload.h"
 #include "resource.h"
-#include "ui/IconsFontAwesome6.h"
+#include "ui/icons.h"
 
 namespace uf::ui {
 
@@ -22,28 +22,30 @@ Fonts& GetFonts() {
 
 namespace {
 
-ImFont* AddFont(int textId) {
+ImFont* AddFont(int textId, int iconsId) {
     ImGuiIO& io = ImGui::GetIO();
     auto text = ResourceBytes(textId);
-    auto icons = ResourceBytes(IDR_FONT_ICONS);
     if (text.empty()) return nullptr;
 
     // Resource memory lives as long as the process: the atlas must not free it.
-    // Inter has its own glyphs in the Private Use Area - leave that range to Font Awesome.
+    // Plex has a few glyphs in the Private Use Area - leave that range to the icons.
     static const ImWchar kPrivateUse[] = {0xE000, 0xF8FF, 0};
     ImFontConfig cfg;
     cfg.FontDataOwnedByAtlas = false;
     cfg.GlyphExcludeRanges = kPrivateUse;
+    cfg.RasterizerMultiply = 1.2f;  // denser glyphs: thin light text on black reads better
     ImFont* font = io.Fonts->AddFontFromMemoryTTF(const_cast<std::uint8_t*>(text.data()), static_cast<int>(text.size()),
                                                   kFontBody, &cfg);
+    auto icons = iconsId ? ResourceBytes(iconsId) : std::span<const std::uint8_t>();
     if (font && !icons.empty()) {
-        static const ImWchar kIconRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA, 0};
+        static const ImWchar kIconRanges[] = {ICON_MIN_PH, ICON_MAX_PH, 0};
         ImFontConfig icfg;
         icfg.FontDataOwnedByAtlas = false;
         icfg.MergeMode = true;
-        icfg.GlyphMinAdvanceX = kFontBody * 1.15f;
-        icfg.GlyphOffset = ImVec2(0.f, 0.5f);
-        io.Fonts->AddFontFromMemoryTTF(const_cast<std::uint8_t*>(icons.data()), static_cast<int>(icons.size()), kFontBody * 0.9f,
+        icfg.RasterizerMultiply = 1.1f;
+        icfg.GlyphMinAdvanceX = kFontBody * 1.1f;
+        icfg.GlyphOffset = ImVec2(0.f, 2.f);  // Phosphor sits on the baseline; center it on the text
+        io.Fonts->AddFontFromMemoryTTF(const_cast<std::uint8_t*>(icons.data()), static_cast<int>(icons.size()), kFontBody * 1.1f,
                                        &icfg, kIconRanges);
     }
     return font;
@@ -93,10 +95,12 @@ bool IconPixels(int px, std::vector<std::uint8_t>& bgra) {
 void LoadFonts() {
     Fonts& f = GetFonts();
     if (f.regular) return;
-    f.regular = AddFont(IDR_FONT_UI);
-    f.bold = AddFont(IDR_FONT_UI_BOLD);
+    f.regular = AddFont(IDR_FONT_UI, IDR_FONT_ICONS);
+    f.bold = AddFont(IDR_FONT_UI_BOLD, IDR_FONT_ICONS_BOLD);
+    f.mono = AddFont(IDR_FONT_MONO, 0);
     if (!f.regular) f.regular = ImGui::GetIO().Fonts->AddFontDefault();
     if (!f.bold) f.bold = f.regular;
+    if (!f.mono) f.mono = f.regular;
     ImGui::GetIO().FontDefault = f.regular;
 }
 
@@ -135,18 +139,19 @@ void ApplyStyle(float scale) {
     s.WindowBorderSize = 0;
     s.WindowRounding = 0;
     s.ChildBorderSize = 0;
-    s.ChildRounding = 10;
+    s.ChildRounding = 0;
     s.FramePadding = ImVec2(12, 8);
-    s.FrameRounding = 8;
+    s.FrameRounding = 4;
     s.FrameBorderSize = 0;
     s.ItemSpacing = ImVec2(10, 8);
     s.ItemInnerSpacing = ImVec2(8, 6);
-    s.ScrollbarSize = 10;
-    s.ScrollbarRounding = 8;
-    s.GrabRounding = 8;
-    s.PopupRounding = 8;
+    s.ScrollbarSize = 6;
+    s.ScrollbarRounding = 3;
+    s.ScrollbarPadding = 0;
+    s.GrabRounding = 3;
+    s.PopupRounding = 4;
     s.PopupBorderSize = 1;
-    s.TabRounding = 8;
+    s.TabRounding = 4;
     s.SeparatorTextBorderSize = 1;
     s.FontSizeBase = kFontBody;
 
@@ -155,29 +160,29 @@ void ApplyStyle(float scale) {
     c[ImGuiCol_TextDisabled] = V(col::TextFaint);
     c[ImGuiCol_WindowBg] = V(col::Bg);
     c[ImGuiCol_ChildBg] = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_PopupBg] = V(col::Surface);
-    c[ImGuiCol_Border] = V(col::Border);
+    c[ImGuiCol_PopupBg] = V(col::Hover);
+    c[ImGuiCol_Border] = V(col::Line);
     c[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_FrameBg] = V(col::SurfaceHover);
-    c[ImGuiCol_FrameBgHovered] = V(col::SurfaceActive);
-    c[ImGuiCol_FrameBgActive] = V(col::SurfaceActive);
-    c[ImGuiCol_TitleBg] = V(col::TitleBar);
-    c[ImGuiCol_TitleBgActive] = V(col::TitleBar);
+    c[ImGuiCol_FrameBg] = V(col::Hover);
+    c[ImGuiCol_FrameBgHovered] = V(col::Selected);
+    c[ImGuiCol_FrameBgActive] = V(col::Selected);
+    c[ImGuiCol_TitleBg] = V(col::Bg);
+    c[ImGuiCol_TitleBgActive] = V(col::Bg);
     c[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_ScrollbarGrab] = V(col::Border);
-    c[ImGuiCol_ScrollbarGrabHovered] = V(col::Muted);
-    c[ImGuiCol_ScrollbarGrabActive] = V(col::TextFaint);
-    c[ImGuiCol_CheckMark] = V(col::Accent);
-    c[ImGuiCol_SliderGrab] = V(col::Accent);
-    c[ImGuiCol_Button] = V(col::SurfaceHover);
-    c[ImGuiCol_ButtonHovered] = V(col::SurfaceActive);
-    c[ImGuiCol_ButtonActive] = V(col::Border);
-    c[ImGuiCol_Header] = V(col::SurfaceHover);
-    c[ImGuiCol_HeaderHovered] = V(col::SurfaceActive);
-    c[ImGuiCol_HeaderActive] = V(col::SurfaceActive);
-    c[ImGuiCol_Separator] = V(col::Border);
-    c[ImGuiCol_TextSelectedBg] = ImVec4(0.545f, 0.361f, 0.965f, 0.35f);
-    c[ImGuiCol_NavCursor] = V(col::AccentHover);
+    c[ImGuiCol_ScrollbarGrab] = V(col::Line);
+    c[ImGuiCol_ScrollbarGrabHovered] = V(col::Control);
+    c[ImGuiCol_ScrollbarGrabActive] = V(col::ControlHover);
+    c[ImGuiCol_CheckMark] = V(col::White);
+    c[ImGuiCol_SliderGrab] = V(col::White);
+    c[ImGuiCol_Button] = V(col::Hover);
+    c[ImGuiCol_ButtonHovered] = V(col::Selected);
+    c[ImGuiCol_ButtonActive] = V(col::Line);
+    c[ImGuiCol_Header] = V(col::Hover);
+    c[ImGuiCol_HeaderHovered] = V(col::Selected);
+    c[ImGuiCol_HeaderActive] = V(col::Selected);
+    c[ImGuiCol_Separator] = V(col::Line);
+    c[ImGuiCol_TextSelectedBg] = ImVec4(1.f, 1.f, 1.f, 0.20f);
+    c[ImGuiCol_NavCursor] = V(col::ControlHover);
 
     s.ScaleAllSizes(scale);
     s.FontScaleDpi = scale;

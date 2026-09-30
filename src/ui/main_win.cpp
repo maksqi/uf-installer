@@ -145,7 +145,7 @@ int Run(HINSTANCE instance) {
     else
         GetCursorPos(&anchor);
     HMONITOR monitor = MonitorFromPoint(anchor, MONITOR_DEFAULTTOPRIMARY);
-    float scale = args.dpiScale > 0 ? args.dpiScale : ImGui_ImplWin32_GetDpiScaleForMonitor(monitor);
+    float scale = (args.dpiScale > 0 ? args.dpiScale : ImGui_ImplWin32_GetDpiScaleForMonitor(monitor)) * kUiZoom;
     SetUiScale(scale);
     MONITORINFO mi{sizeof(mi)};
     GetMonitorInfoW(monitor, &mi);
@@ -218,7 +218,7 @@ int Run(HINSTANCE instance) {
         if (IsIconic(hwnd)) continue;
 
         if (g_pendingScale > 0.f) {
-            scale = args.dpiScale > 0 ? args.dpiScale : g_pendingScale;
+            scale = (args.dpiScale > 0 ? args.dpiScale : g_pendingScale) * kUiZoom;
             g_pendingScale = 0.f;
             SetUiScale(scale);
             ApplyStyle(scale);
