@@ -1,0 +1,33 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "x86-release",
+      "displayName": "x86 Release (MSVC v143 14.44, static CRT)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/x86-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
+      },
+      "architecture": { "value": "x86", "strategy": "external" },
+      "toolset": { "value": "v143,host=x64,version=14.44", "strategy": "external" }
+    },
+    {
+      "name": "x86-debug",
+      "inherits": "x86-release",
+      "displayName": "x86 Debug",
+      "binaryDir": "${sourceDir}/build/x86-debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "x86-release", "configurePreset": "x86-release" },
+    { "name": "x86-debug", "configurePreset": "x86-debug" }
+  ],
+  "testPresets": [
+    { "name": "x86-release", "configurePreset": "x86-release", "output": { "outputOnFailure": true } },
+    { "name": "x86-debug", "configurePreset": "x86-debug", "output": { "outputOnFailure": true } }
+  ]
+}
