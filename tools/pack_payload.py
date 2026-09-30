@@ -1,29 +1,27 @@
 #!/usr/bin/env python3
 """Packs the installer payload.
 
-Reads the source archives (CLEO, SAMPFUNCS, MoonLoader, Silent's ASI Loader,
-the UltraFuck script and a fonts archive), sorts every file into an installer
+Reads the source .zip archives (CLEO, SAMPFUNCS, MoonLoader, Silent's ASI Loader,
+the UltraFuck script and the fonts), sorts every file into an installer
 component, resolves conflicts between archives and writes:
 
-  payload.zip              - one archive embedded into the exe as RCDATA
+  payload.zip              - one LZMA archive embedded into the exe as RCDATA
   payload_manifest.gen.h   - C++ table of files/dirs/fonts + versions + known hashes
   payload_report.txt       - human readable summary of what was packed / skipped
 """
 from __future__ import annotations
 
 import argparse
-import io
 import os
 import re
-import shutil
 import struct
-import subprocess
 import sys
-import tempfile
 import zipfile
 import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from repack_zip import build_zip, write_file
 
 FONT_EXT = (".ttf", ".otf", ".ttc")
 PE_EXT = (".dll", ".asi", ".cleo")
@@ -92,37 +90,6 @@ def read_zip(path: Path) -> Archive:
         prefix = d + "/"
         if not any(f.startswith(prefix) for f in arc.files) and not any(o != d and o.startswith(prefix) for o in dirs):
             arc.empty_dirs.add(d)
-    return arc
-
-
-def find_unrar(explicit: str | None) -> str | None:
-    candidates = [explicit] if explicit else []
-    candidates += [shutil.which("UnRAR.exe") or "", shutil.which("unrar") or ""]
-    for pf in (os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")):
-        candidates.append(os.path.join(pf, "WinRAR", "UnRAR.exe"))
-    for c in candidates:
-        if c and os.path.isfile(c):
-            return c
-    return None
-
-
-def read_rar(path: Path, unrar: str | None, cmake: str | None) -> Archive:
-    arc = Archive(path)
-    with tempfile.TemporaryDirectory(prefix="uf-pack-") as tmp:
-        ok = False
-        if unrar:
-            r = subprocess.run([unrar, "x", "-o+", "-y", "-inul", str(path), tmp + os.sep])
-            ok = r.returncode == 0
-        if not ok and cmake:
-            # NOTE: Windows' bundled tar.exe corrupts this archive, CMake's libarchive is only a fallback.
-            r = subprocess.run([cmake, "-E", "tar", "xf", str(path)], cwd=tmp)
-            ok = r.returncode == 0
-        if not ok:
-            fail(f"cannot extract {path.name}: install WinRAR (UnRAR.exe) or pass --unrar")
-        for root, _, files in os.walk(tmp):
-            for f in files:
-                full = Path(root) / f
-                arc.files[norm(str(full.relative_to(tmp)))] = full.read_bytes()
     return arc
 
 
@@ -220,15 +187,14 @@ def skip_common(name: str) -> bool:
 
 # --------------------------------------------------------------------------- main packing
 
-def pack(src: Path, out: Path, unrar: str | None, cmake: str | None) -> None:
+def pack(src: Path, out: Path) -> None:
     archives: dict[str, Archive] = {}
     for p in sorted(src.iterdir()):
-        if p.suffix.lower() == ".zip":
-            arc = read_zip(p)
-        elif p.suffix.lower() == ".rar":
-            arc = read_rar(p, find_unrar(unrar), cmake)
-        else:
+        if p.suffix.lower() in (".rar", ".7z"):
+            fail(f"{p.name}: only .zip archives are supported, convert it: python tools/repack_zip.py <unpacked folder> -o {p.stem}.zip")
+        if p.suffix.lower() != ".zip":
             continue
+        arc = read_zip(p)
         arc.kind = classify(arc)
         if not arc.kind:
             note(f"WARNING: {p.name}: unknown archive content, ignored")
@@ -368,7 +334,7 @@ def pack(src: Path, out: Path, unrar: str | None, cmake: str | None) -> None:
     for name, data in sorted(archives["fonts"].files.items()):
         info = ttf_full_name(data)
         if not info:
-            fail(f"{name}: not a valid TrueType/OpenType font (corrupted extraction?)")
+            fail(f"{name}: not a valid TrueType/OpenType font")
         full, cff = info
         base = os.path.basename(name)
         entry = f"fonts/{base}"
@@ -399,16 +365,10 @@ def pack(src: Path, out: Path, unrar: str | None, cmake: str | None) -> None:
         if d:
             loaders.add((len(d), zlib.crc32(d)))
 
-    # --- write payload.zip (deterministic)
+    # --- write payload.zip (deterministic, LZMA preset 9e)
     out.mkdir(parents=True, exist_ok=True)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
-        for it in sorted(items, key=lambda i: i.entry.lower()):
-            zi = zipfile.ZipInfo(it.entry, ZIP_TIME)
-            zi.compress_type = zipfile.ZIP_DEFLATED
-            zi.external_attr = 0o644 << 16
-            zf.writestr(zi, it.data, compresslevel=9)
-    write_if_changed(out / "payload.zip", buf.getvalue())
+    payload = build_zip([(it.entry, it.data, ZIP_TIME) for it in sorted(items, key=lambda i: i.entry.lower())])
+    write_if_changed(out / "payload.zip", payload)
 
     # --- manifest header
     def cstr(s: str) -> str:
@@ -458,7 +418,7 @@ def pack(src: Path, out: Path, unrar: str | None, cmake: str | None) -> None:
 
     total = sum(len(i.data) for i in items)
     note(f"UltraFuck {script_version}, MoonLoader {ml_ver}, SAMPFUNCS {sf_ver} ({sf_target}), CLEO {cleo_ver}, BASS {bass_ver}")
-    note(f"{len(items)} files, {total / 1048576:.1f} MiB unpacked -> payload.zip {len(buf.getvalue()) / 1048576:.1f} MiB")
+    note(f"{len(items)} files, {total / 1048576:.1f} MiB unpacked -> payload.zip {len(payload) / 1048576:.1f} MiB")
     if bad_pe:
         note(f"broken binaries skipped: {bad_pe}")
     lines = [f"{i.comp:10} {i.dest}  [{i.unit}]" if i.unit else f"{i.comp:10} {i.dest}" for i in sorted(items, key=lambda i: (i.comp, i.dest.lower()))]
@@ -466,23 +426,18 @@ def pack(src: Path, out: Path, unrar: str | None, cmake: str | None) -> None:
 
 
 def write_if_changed(path: Path, data: bytes) -> None:
-    if path.exists() and path.read_bytes() == data:
-        return
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, path)
+    if not path.exists() or path.read_bytes() != data:
+        write_file(path, data)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--src", required=True, type=Path, help="folder with the source archives")
     ap.add_argument("--out", required=True, type=Path, help="output folder for generated files")
-    ap.add_argument("--unrar", help="path to UnRAR.exe")
-    ap.add_argument("--cmake", help="path to cmake (fallback RAR extractor)")
     args = ap.parse_args()
     if not args.src.is_dir():
         fail(f"payload folder not found: {args.src}")
-    pack(args.src, args.out, args.unrar, args.cmake)
+    pack(args.src, args.out)
 
 
 if __name__ == "__main__":

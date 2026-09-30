@@ -1,5 +1,5 @@
 #pragma once
-// Command line shared by the GUI and the CLI.
+// Command line of the installer (mostly test and debug switches).
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -30,9 +30,6 @@ struct Args {
     std::optional<std::pair<int, int>> pos; // --pos x,y
     std::string lang;                       // --lang ru|en (default: from Windows)
     std::string theme;                      // --theme dark|light (default: from Windows)
-    bool json = false;                      // --json (CLI)
-    bool yes = false;                       // --yes (CLI)
-    std::vector<std::wstring> positional;
     std::vector<std::wstring> unknown;
 };
 

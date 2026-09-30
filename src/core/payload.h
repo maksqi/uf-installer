@@ -13,7 +13,7 @@ namespace uf {
 // Raw bytes of an RCDATA resource of the current exe (empty span if missing).
 std::span<const std::uint8_t> ResourceBytes(int id);
 
-// payload.zip embedded as RCDATA; entries are streamed straight to files.
+// payload.zip embedded as RCDATA. Deflate entries are streamed to files, LZMA entries are decoded in memory.
 class Payload {
 public:
     static Payload& Instance();
@@ -21,7 +21,7 @@ public:
     bool ok() const { return ok_; }
     const std::string& error() const { return error_; }
 
-    // Extracts `entry` to `dest` (parent folders are created). miniz verifies the CRC.
+    // Extracts `entry` to `dest` (parent folders are created) and verifies the CRC.
     // Throws std::runtime_error with a readable message on failure.
     void Extract(std::string_view entry, const fs::path& dest);
 

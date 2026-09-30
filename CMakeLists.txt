@@ -49,7 +49,7 @@ add_library(uf_core STATIC
     src/core/versions.cpp
     "${UF_MANIFEST_H}")
 target_include_directories(uf_core PUBLIC src "${UF_GEN_DIR}" "${UF_DEPS_INCLUDE}" "${UF_RES_DIR}")
-target_link_libraries(uf_core PUBLIC miniz version shlwapi ole32 shell32 advapi32 user32 gdi32 urlmon wintrust crypt32 mpr)
+target_link_libraries(uf_core PUBLIC miniz lzmadec version shlwapi ole32 shell32 advapi32 user32 gdi32 urlmon wintrust crypt32 mpr)
 target_compile_options(uf_core PRIVATE /W4)
 add_dependencies(uf_core uf_payload)
 
@@ -71,11 +71,6 @@ add_executable(uf-installer WIN32
 target_include_directories(uf-installer PRIVATE src)
 target_link_libraries(uf-installer PRIVATE uf_core imgui d3d9 dwmapi imm32 windowscodecs comctl32)
 target_compile_options(uf-installer PRIVATE /W4)
-
-# ---------------------------------------------------------------- CLI (development / automation)
-add_executable(uf-cli src/cli/main_cli.cpp ${UF_RESOURCES})
-target_link_libraries(uf-cli PRIVATE uf_core)
-target_compile_options(uf-cli PRIVATE /W4)
 
 # ---------------------------------------------------------------- tests
 enable_testing()

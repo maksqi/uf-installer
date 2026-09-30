@@ -10,7 +10,7 @@ param(
     [ValidateSet('Release', 'Debug')][string]$Config = 'Release',
     [switch]$Clean,
     [switch]$NoTests,
-    [string]$Payload,                 # folder with the source archives (default: %USERPROFILE%\Desktop\uf-installer)
+    [string]$Payload,                 # folder with the source archives (default: payload\ in the repo)
     [string]$Toolset = '14.44'        # MSVC v143: the last toolset whose static CRT still runs on Windows 7
 )
 $ErrorActionPreference = 'Stop'

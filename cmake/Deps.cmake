@@ -50,6 +50,13 @@ uf_download(miniz-3.1.2.zip
 uf_extract("${miniz_zip}" "${UF_DEPS_DIR}/miniz")
 set(MINIZ_DIR "${UF_DEPS_DIR}/miniz")
 
+# LZMA SDK (public domain): only LzmaDec.c, for the LZMA entries of payload.zip (miniz reads deflate only)
+uf_download(lzma2501.7z
+    "https://github.com/ip7z/7zip/releases/download/25.01/lzma2501.7z"
+    cbc3babd589d971e45971d787ff100be8aaa5eab15b2694497ec3e447009e1f2 lzma_7z)
+uf_extract("${lzma_7z}" "${UF_DEPS_DIR}/lzma")
+set(LZMA_DIR "${UF_DEPS_DIR}/lzma/C")
+
 # nlohmann/json (single header)
 uf_download(json-3.12.0.hpp
     "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp"
@@ -90,3 +97,7 @@ target_compile_options(imgui PRIVATE /W0)
 add_library(miniz STATIC "${MINIZ_DIR}/miniz.c")
 target_include_directories(miniz PUBLIC "${MINIZ_DIR}")
 target_compile_options(miniz PRIVATE /W0)
+
+add_library(lzmadec STATIC "${LZMA_DIR}/LzmaDec.c")
+target_include_directories(lzmadec PUBLIC "${LZMA_DIR}")
+target_compile_options(lzmadec PRIVATE /W0)

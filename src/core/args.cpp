@@ -62,14 +62,8 @@ Args ParseArgs(int argc, wchar_t** argv) {
             if (auto v = next()) a.lang = ToUtf8(*v);
         } else if (s == L"--theme") {
             if (auto v = next()) a.theme = ToUtf8(*v);
-        } else if (s == L"--json") {
-            a.json = true;
-        } else if (s == L"--yes" || s == L"-y") {
-            a.yes = true;
-        } else if (s.starts_with(L"--")) {
-            a.unknown.push_back(s);
         } else {
-            a.positional.push_back(s);
+            a.unknown.push_back(s);
         }
     }
     return a;

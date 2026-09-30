@@ -14,8 +14,6 @@ enum class Level { Info, Warn, Error };
 void Init(const fs::path& file);
 fs::path File();
 void Write(Level level, std::string_view message);
-// Mirrors every line to stdout (used by the CLI).
-void EchoToStdout(bool enable);
 std::vector<std::string> Recent(std::size_t maxLines = 200);
 
 template <typename... Args>

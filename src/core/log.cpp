@@ -2,7 +2,6 @@
 
 #include <windows.h>
 
-#include <cstdio>
 #include <deque>
 #include <mutex>
 
@@ -15,7 +14,6 @@ struct State {
     HANDLE file = INVALID_HANDLE_VALUE;
     fs::path path;
     std::deque<std::string> recent;
-    bool echo = false;
 };
 
 State& S() {
@@ -57,11 +55,6 @@ fs::path File() {
     return S().path;
 }
 
-void EchoToStdout(bool enable) {
-    std::lock_guard lock(S().mutex);
-    S().echo = enable;
-}
-
 void Write(Level level, std::string_view message) {
     SYSTEMTIME t;
     GetLocalTime(&t);
@@ -74,11 +67,6 @@ void Write(Level level, std::string_view message) {
         std::string l = line + "\r\n";
         DWORD written = 0;
         WriteFile(s.file, l.data(), static_cast<DWORD>(l.size()), &written, nullptr);
-    }
-    if (s.echo) {
-        std::fwrite(line.data(), 1, line.size(), stdout);
-        std::fputc('\n', stdout);
-        std::fflush(stdout);
     }
     s.recent.push_back(std::move(line));
     if (s.recent.size() > 2000) s.recent.pop_front();

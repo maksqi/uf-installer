@@ -85,6 +85,19 @@ TEST_CASE("payload is embedded") {
     REQUIRE(Payload::Instance().ok());
 }
 
+TEST_CASE("every payload entry unpacks with the size and CRC from the manifest") {
+    TempGame g;
+    fs::path out = g.root / L"unpacked";
+    for (const PayloadFile& f : gen::kFiles) {
+        Payload::Instance().Extract(f.entry, out / f.entry);
+        CHECK_MESSAGE(FileMatches(out / f.entry, f.size, f.crc), f.entry);
+    }
+    for (const PayloadFont& f : gen::kFonts) {
+        Payload::Instance().Extract(f.entry, out / f.entry);
+        CHECK_MESSAGE(FileMatches(out / f.entry, f.size, f.crc), f.entry);
+    }
+}
+
 TEST_CASE("fresh install into a bare folder, then nothing left to do") {
     TempGame g;
     FolderReport r = g.Report();

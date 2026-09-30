@@ -1,0 +1,48 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # VS 2022 17.14 = MSVC 14.44, the last toolset whose static CRT still runs on Windows 7.
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check that the tag matches the project version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        run: |
+          $v = (Select-String -Path CMakeLists.txt -Pattern 'project\(uf_installer VERSION ([0-9.]+)').Matches[0].Groups[1].Value
+          if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match the version $v in CMakeLists.txt" }
+
+      - name: Cache third-party downloads
+        uses: actions/cache@v6
+        with:
+          path: .deps
+          key: deps-${{ hashFiles('cmake/Deps.cmake') }}
+
+      - name: Build, test and audit
+        shell: powershell
+        run: .\build.ps1
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: uf-installer
+          path: build/x86-release/uf-installer.exe
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/x86-release/uf-installer.exe --title "$GITHUB_REF_NAME" --generate-notes
