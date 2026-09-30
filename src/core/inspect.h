@@ -56,7 +56,7 @@ struct FolderReport {
     std::string sampFileVersion;
 
     LoaderKind loader = LoaderKind::None;
-    std::string loaderName;
+    std::string ualName;  // "Ultimate ASI Loader (dinput8.dll)" when loader == Ual
     bool hasHookedVorbis = false;
 
     std::optional<AsiInfo> cleo, sampfuncs, moonloader;
@@ -65,6 +65,7 @@ struct FolderReport {
     bool hasLua51 = false;
 
     std::vector<std::uint8_t> payloadFileExists;  // index-aligned with gen::kFiles
+    std::vector<std::uint8_t> payloadFileSame;    // same, 1 = identical to the bundled file (libraries only)
     std::vector<std::uint8_t> payloadDirExists;   // index-aligned with gen::kDirs
     std::vector<LibUnitState> libUnits;
 
@@ -79,7 +80,6 @@ struct FolderReport {
 
     bool arizona = false;
     std::string arizonaId;
-    std::string arizonaTitle;
     bool arizonaAutoClean = false;
 
     bool nonAsciiPath = false;
@@ -98,6 +98,8 @@ struct InspectOptions {
 };
 
 FolderReport Inspect(const fs::path& dir, const InspectOptions& options);
+// Human-readable loader name in the current language.
+std::string LoaderName(const FolderReport& r);
 
 // Quick checks used by the drive scanner and the installer.
 bool HasGtaExe(const fs::path& dir);

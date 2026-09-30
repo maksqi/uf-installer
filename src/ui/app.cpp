@@ -8,14 +8,20 @@
 #include "core/elevation.h"
 #include "core/fonts.h"
 #include "core/fsutil.h"
+#include "core/i18n.h"
 #include "core/log.h"
 #include "ui/screens/screens.h"
 #include "ui/widgets.h"
 
 namespace uf::ui {
 
+std::string WindowTitle() { return T("UltraFuck — установка", "UltraFuck Setup"); }
+
 App::App(HWND hwnd, Args args) : hwnd_(hwnd), args_(std::move(args)) {
     options = DecodeOptions(args_.opts);
+    // Fresh start: refresh the libraries by default (only files that differ from the bundle are written).
+    if (args_.opts.empty()) options.overwriteLibs = true;
+    themeFollowsSystem = args_.theme.empty();
     if (args_.fontsDir) options.customFontsDir = true;
 }
 
@@ -112,7 +118,10 @@ void App::PumpBackgroundResults() {
                 BeginInstall();
             else
                 analysisBanner = {Severity::Warning,
-                                  "Пока запрашивались права администратора, состояние папки изменилось. Проверьте список и нажмите «Установить» ещё раз.",
+                                  T("Пока запрашивались права администратора, состояние папки изменилось. Проверьте список и "
+                                    "нажмите «Установить» ещё раз.",
+                                    "The folder changed while administrator rights were requested. Check the list and press "
+                                    "\"Install\" again."),
                                   false};
         }
     }
@@ -124,7 +133,8 @@ void App::BrowseFolder() {
     DWORD flags = 0;
     dlg->GetOptions(&flags);
     dlg->SetOptions(flags | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
-    dlg->SetTitle(L"Выберите папку с GTA San Andreas (где лежит gta_sa.exe)");
+    dlg->SetTitle(ToWide(T("Выберите папку с GTA San Andreas (где лежит gta_sa.exe)",
+                           "Select the GTA San Andreas folder (the one with gta_sa.exe)")).c_str());
     std::optional<fs::path> picked;
     if (SUCCEEDED(dlg->Show(hwnd_))) {
         IShellItem* item = nullptr;
@@ -144,7 +154,8 @@ void App::BrowseFolder() {
         OpenAnalysis(*game);
     } else {
         selectBanner = {Severity::Error,
-                        std::format("В папке «{}» и её подпапках нет gta_sa.exe. Укажите папку, в которой лежит игра.", PathUtf8(*picked)),
+                        F("В папке «{}» и её подпапках нет gta_sa.exe. Укажите папку, в которой лежит игра.",
+                          "There is no gta_sa.exe in \"{}\" or its subfolders. Select the folder the game is in.", PathUtf8(*picked)),
                         false};
     }
 }
@@ -159,14 +170,21 @@ void App::BeginInstall() {
             reduced.Set(ItemId::Fonts, false);
             reduced.Set(ItemId::DirectX, false);
             InstallPlan alt = BuildPlan(*report, reduced);
-            analysisBanner = {Severity::Error, "Windows не выдала права администратора. Запустите установщик от имени администратора "
-                                               "(правый клик → «Запуск от имени администратора»).",
+            analysisBanner = {Severity::Error,
+                              T("Windows не выдала права администратора. Запустите установщик от имени администратора "
+                                "(правый клик → «Запуск от имени администратора»).",
+                                "Windows did not grant administrator rights. Run the installer as administrator "
+                                "(right click → \"Run as administrator\")."),
                               !alt.needsAdmin && !alt.Empty()};
             return;
         }
         RECT rc{};
         GetWindowRect(hwnd_, &rc);
-        std::wstring params = BuildElevatedParameters(args_, report->dir, EncodeOptions(options), plan.Hash(), true,
+        // The elevated copy keeps the language and theme the user sees now.
+        Args base = args_;
+        base.lang = LangCode(CurrentLang());
+        base.theme = ThemeName(CurrentTheme());
+        std::wstring params = BuildElevatedParameters(base, report->dir, EncodeOptions(options), plan.Hash(), true,
                                                       std::pair{static_cast<int>(rc.left), static_cast<int>(rc.top)});
         log::Info("Requesting elevation: {}", ToUtf8(params));
         unsigned long err = 0;
@@ -180,18 +198,22 @@ void App::BeginInstall() {
                 reduced.Set(ItemId::Fonts, false);
                 reduced.Set(ItemId::DirectX, false);
                 InstallPlan alt = BuildPlan(*report, reduced);
-                Banner b{Severity::Warning, "Права администратора не получены. ", false};
+                Banner b{Severity::Warning, T("Права администратора не получены. ", "Administrator rights were not granted. "), false};
                 if (!alt.needsAdmin && !alt.Empty()) {
-                    b.text += "Можно установить всё остальное — без шрифтов и DirectX.";
+                    b.text += T("Можно установить всё остальное — без шрифтов и DirectX.",
+                                "Everything else can still be installed, without the fonts and DirectX.");
                     b.offerWithoutAdmin = true;
                 } else {
-                    b.text += "Без них установить в эту папку не получится.";
+                    b.text += T("Без них установить в эту папку не получится.", "Installing into this folder is not possible without them.");
                 }
                 analysisBanner = b;
                 return;
             }
             case ElevateResult::Failed:
-                analysisBanner = {Severity::Error, "Не удалось запросить права администратора: " + Win32ErrorText(err), false};
+                analysisBanner = {Severity::Error,
+                                  T("Не удалось запросить права администратора: ", "Could not request administrator rights: ") +
+                                      Win32ErrorText(err),
+                                  false};
                 return;
         }
     }
@@ -271,7 +293,7 @@ bool App::Animating() const {
 }
 
 bool App::CaptionHit(POINT pt, const RECT& rc) const {
-    return pt.y >= 0 && pt.y < S(kTitleBarHeight) && pt.x < rc.right - S(kCaptionButtonWidth * 2);
+    return pt.y >= 0 && pt.y < S(kTitleBarHeight) && pt.x < rc.right - S(kCaptionButtonWidth * 2 + kTitleToolsWidth);
 }
 
 bool App::ReadyForScreenshot() const {
@@ -289,7 +311,34 @@ bool App::ReadyForScreenshot() const {
     return true;
 }
 
+void App::ToggleTheme() {
+    themeFollowsSystem = false;
+    pendingTheme_ = CurrentTheme() == Theme::Dark ? Theme::Light : Theme::Dark;
+    Wake();
+}
+
+void App::OnSystemThemeChanged() {
+    if (!themeFollowsSystem) return;
+    if (Theme t = SystemTheme(); t != CurrentTheme()) {
+        pendingTheme_ = t;
+        Wake();
+    }
+}
+
+void App::SetLanguage(Lang lang) {
+    if (lang == CurrentLang()) return;
+    log::Info("Language switched to {}", LangCode(lang));
+    SetLang(lang);
+    SetWindowTextW(hwnd_, ToWide(WindowTitle()).c_str());
+    // Texts of the plan are built in the current language.
+    if (report && !analyzing) RebuildPlan();
+}
+
 void App::Frame() {
+    if (pendingTheme_) {
+        ApplyTheme(*pendingTheme_, hwnd_);
+        pendingTheme_.reset();
+    }
     PumpBackgroundResults();
     if (discovery_) games = discovery_->Snapshot();
 

@@ -29,3 +29,6 @@
 #define ICON_ARROW_COUNTER_CLOCKWISE "\xee\x80\xb8"  // ph-arrow-counter-clockwise
 #define ICON_STOP                    "\xee\x91\xac"  // ph-stop
 #define ICON_ARROW_SQUARE_OUT        "\xee\x97\x9e"  // ph-arrow-square-out
+#define ICON_SUN                     "\xee\x91\xb2"  // ph-sun
+#define ICON_MOON                    "\xee\x8c\xb0"  // ph-moon
+#define ICON_GLOBE                   "\xee\x8a\x8e"  // ph-globe-simple

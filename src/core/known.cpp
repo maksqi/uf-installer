@@ -1,4 +1,5 @@
 #include "core/known.h"
+#include "core/i18n.h"
 
 #include <algorithm>
 #include <regex>
@@ -14,14 +15,14 @@ SampVersion SampVersionFromEntryPoint(std::uint32_t entryRva) {
 
 std::string_view SampVersionName(SampVersion v) {
     switch (v) {
-        case SampVersion::None: return "не установлен";
+        case SampVersion::None: return T("не установлен", "not installed");
         case SampVersion::R1: return "0.3.7-R1";
         case SampVersion::R2: return "0.3.7-R2";
         case SampVersion::R3_1: return "0.3.7-R3-1";
         case SampVersion::R4: return "0.3.7-R4";
         case SampVersion::R5: return "0.3.7-R5";
         case SampVersion::DL: return "0.3.DL-R1";
-        case SampVersion::Unknown: return "неизвестная сборка";
+        case SampVersion::Unknown: return T("неизвестная сборка", "unknown build");
     }
     return "?";
 }
@@ -40,13 +41,13 @@ std::string_view SampShortName(SampVersion v) {
 
 std::string_view GtaVersionName(GtaVersion v) {
     switch (v) {
-        case GtaVersion::Missing: return "не найдена";
+        case GtaVersion::Missing: return T("не найдена", "not found");
         case GtaVersion::US10: return "1.0 US";
         case GtaVersion::EU10: return "1.0 EU";
         case GtaVersion::US101: return "1.01 US";
         case GtaVersion::EU101: return "1.01 EU";
         case GtaVersion::V3: return "3.0 (Steam)";
-        case GtaVersion::Unknown: return "неизвестная версия";
+        case GtaVersion::Unknown: return T("неизвестная версия", "unknown version");
     }
     return "?";
 }

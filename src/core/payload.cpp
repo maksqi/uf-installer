@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "core/fsutil.h"
+#include "core/i18n.h"
 #include "resource.h"
 
 namespace uf {
@@ -36,11 +37,12 @@ Payload& Payload::Instance() {
 Payload::Payload() : impl_(std::make_unique<Impl>()) {
     auto bytes = ResourceBytes(IDR_PAYLOAD);
     if (bytes.empty()) {
-        error_ = "Встроенный архив с файлами не найден — установщик повреждён.";
+        error_ = T("Встроенный архив с файлами не найден — установщик повреждён.",
+                   "The embedded file archive is missing: the installer is damaged.");
         return;
     }
     if (!mz_zip_reader_init_mem(&impl_->zip, bytes.data(), bytes.size(), 0)) {
-        error_ = std::format("Встроенный архив повреждён: {}", mz_zip_get_error_string(mz_zip_get_last_error(&impl_->zip)));
+        error_ = F("Встроенный архив повреждён: {}", "The embedded archive is damaged: {}", mz_zip_get_error_string(mz_zip_get_last_error(&impl_->zip)));
         return;
     }
     ok_ = true;
@@ -55,13 +57,14 @@ void Payload::Extract(std::string_view entry, const fs::path& dest) {
     if (!ok_) throw std::runtime_error(error_);
     std::string name(entry);
     int index = mz_zip_reader_locate_file(&impl_->zip, name.c_str(), nullptr, 0);
-    if (index < 0) throw std::runtime_error(std::format("В установщике нет файла {}", name));
+    if (index < 0) throw std::runtime_error(F("В установщике нет файла {}", "The installer has no file {}", name));
 
     CreateDirs(dest.parent_path());
     HANDLE f = CreateFileW(ExtendedPath(dest).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (f == INVALID_HANDLE_VALUE) {
         DWORD e = GetLastError();
-        throw FsError(e, std::format("Не удалось создать временный файл «{}»: {}", PathUtf8(dest), Win32ErrorText(e)));
+        throw FsError(e, F("Не удалось создать временный файл «{}»: {}", "Could not create the temporary file \"{}\": {}", PathUtf8(dest),
+                           Win32ErrorText(e)));
     }
     auto write = [](void* opaque, mz_uint64, const void* buf, size_t n) -> size_t {
         DWORD written = 0;
@@ -72,7 +75,7 @@ void Payload::Extract(std::string_view entry, const fs::path& dest) {
     CloseHandle(f);
     if (!ok) {
         DeleteFileW(ExtendedPath(dest).c_str());
-        throw std::runtime_error(std::format("Ошибка распаковки {}: {}", name,
+        throw std::runtime_error(F("Ошибка распаковки {}: {}", "Could not unpack {}: {}", name,
                                              mz_zip_get_error_string(mz_zip_get_last_error(&impl_->zip))));
     }
 }

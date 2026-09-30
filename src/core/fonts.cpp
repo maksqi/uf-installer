@@ -7,6 +7,7 @@
 #include "core/fsutil.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/i18n.h"
 
 namespace uf {
 
@@ -23,7 +24,7 @@ void InstallFontFile(const fs::path& staged, const fs::path& fontsDir, const std
     LONG r = reg::WriteString(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
                               ToWide(regName).c_str(), ToWide(file), KEY_WOW64_64KEY);
     if (r != ERROR_SUCCESS)
-        throw FsError(static_cast<unsigned long>(r), std::format("Не удалось зарегистрировать шрифт {}: {}", file, Win32ErrorText(r)));
+        throw FsError(static_cast<unsigned long>(r), F("Не удалось зарегистрировать шрифт {}: {}", "Could not register the font {}: {}", file, Win32ErrorText(r)));
     if (AddFontResourceW(dest.c_str()) == 0) log::Warn("AddFontResource({}) failed", file);
 }
 

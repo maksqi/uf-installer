@@ -4,6 +4,7 @@
 
 #include "core/fsutil.h"
 #include "core/registry.h"
+#include "core/i18n.h"
 
 namespace uf {
 
@@ -57,7 +58,7 @@ std::string ArizonaTitle(std::string_view id) {
         staging = true;
     }
     std::string title = base == "arizona" ? "Arizona RP" : base == "rodina" ? "Rodina RP" : base == "village" ? "Village" : base;
-    return staging ? title + " (тестовый сервер)" : title;
+    return staging ? title + T(" (тестовый сервер)", " (test server)") : title;
 }
 
 std::vector<ArizonaGame> ParseArizonaSettings(std::string_view text, const fs::path& launcherDir) {

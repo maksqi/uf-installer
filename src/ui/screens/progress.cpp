@@ -3,6 +3,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/i18n.h"
 #include "payload_manifest.gen.h"
 #include "ui/icons.h"
 #include "ui/screens/screens.h"
@@ -37,7 +38,7 @@ void LogBox(const std::vector<std::string>& lines, ImVec2 size, bool followTail)
     ImGui::Dummy(ImVec2(size.x, S(10)));
 }
 
-// Heading with an optional icon in front: "✓ Готово".
+// Heading with an optional icon in front of it.
 void Heading(ImDrawList* dl, ImVec2 p, const char* icon, ImU32 iconColor, const char* text) {
     Fonts& f = GetFonts();
     float x = p.x;
@@ -77,14 +78,14 @@ void DrawProgressScreen(App& app) {
     const float footerH = S(72);
     float y = l.top + S(28);
 
-    DrawLabel(dl, f.bold, kFontHeading, ImVec2(x, y), col::Text, "Установка");
+    DrawLabel(dl, f.bold, kFontHeading, ImVec2(x, y), col::Text, T("Установка", "Installing"));
     y += S(42);
     std::string where = EllipsizeLeft(f.mono, kFontMono, PathUtf8(app.target), w);
     DrawLabel(dl, f.mono, kFontMono, ImVec2(x, y), col::TextFaint, where.c_str());
     y += S(44);
 
     const InstallProgress& p = app.progress;
-    std::string stage = p.stage.empty() ? "Подготовка" : p.stage;
+    std::string stage = p.stage.empty() ? std::string(T("Подготовка", "Preparing")) : p.stage;
     DrawLabel(dl, f.regular, kFontBody, ImVec2(x, y), col::Text, stage.c_str());
     bool indeterminate = p.stage == "DirectX";
     if (!indeterminate) {
@@ -107,9 +108,10 @@ void DrawProgressScreen(App& app) {
     float fy = BeginFooter(l, footerH);
     float lh = TextSize(f.regular, kFontSmall, "Ag").y;
     DrawLabel(dl, f.regular, kFontSmall, ImVec2(x, fy + (footerH - lh) * 0.5f), col::TextDim,
-              "Не закрывайте установщик и не запускайте игру до окончания.");
+              T("Не закрывайте установщик и не запускайте игру до окончания.",
+                "Do not close the installer or start the game until it finishes."));
     ImGui::SetCursorScreenPos(ImVec2(l.origin.x + l.size.x - l.margin - S(112), fy + (footerH - S(36)) * 0.5f));
-    if (Button("Отмена", ImVec2(S(112), S(36)), ButtonKind::Secondary, !indeterminate)) app.CancelInstall();
+    if (Button(T("Отмена", "Cancel"), ImVec2(S(112), S(36)), ButtonKind::Secondary, !indeterminate)) app.CancelInstall();
 }
 
 void DrawDoneScreen(App& app) {
@@ -124,9 +126,10 @@ void DrawDoneScreen(App& app) {
     float y = l.top + S(28);
 
     if (r.ok) {
-        Heading(dl, ImVec2(x, y), ICON_CHECK_CIRCLE, col::Text, "Готово");
+        Heading(dl, ImVec2(x, y), ICON_CHECK_CIRCLE, col::Text, T("Готово", "Done"));
         y += S(42);
-        std::string sub = std::format("UltraFuck {} и всё нужное для него установлено. Запускайте игру как обычно.", gen::kScriptVersion);
+        std::string sub = F("UltraFuck {} и всё нужное для него установлено. Запускайте игру как обычно.",
+                            "UltraFuck {} and everything it needs are installed. Start the game as usual.", gen::kScriptVersion);
         DrawLabel(dl, f.regular, kFontBody, ImVec2(x, y), col::TextDim, sub.c_str());
         y += S(40);
 
@@ -135,28 +138,31 @@ void DrawDoneScreen(App& app) {
                           ImGuiWindowFlags_NoBackground);
         ImDrawList* cdl = ImGui::GetWindowDrawList();
         std::vector<std::pair<std::string, std::string>> stats = {
-            {"Новых файлов", std::to_string(r.installed)},
-            {"Заменено", std::to_string(r.replaced)},
-            {"Без изменений", std::to_string(r.skipped)},
+            {T("Новых файлов", "New files"), std::to_string(r.installed)},
+            {T("Заменено", "Replaced"), std::to_string(r.replaced)},
+            {T("Без изменений", "Unchanged"), std::to_string(r.skipped)},
         };
-        if (r.movedOld) stats.push_back({"Старых версий убрано", std::to_string(r.movedOld)});
-        if (r.fontsInstalled) stats.push_back({"Шрифтов установлено", std::to_string(r.fontsInstalled)});
-        if (r.directxInstalled) stats.push_back({"DirectX", "установлен"});
-        stats.push_back({"Время", std::format("{:.1f} с", r.seconds)});
+        if (r.movedOld) stats.push_back({T("Старых версий убрано", "Old versions removed"), std::to_string(r.movedOld)});
+        if (r.fontsInstalled) stats.push_back({T("Шрифтов установлено", "Fonts installed"), std::to_string(r.fontsInstalled)});
+        if (r.directxInstalled) stats.push_back({"DirectX", T("установлен", "installed")});
+        stats.push_back({T("Время", "Time"), F("{:.1f} с", "{:.1f} s", r.seconds)});
         ImVec2 p = ImGui::GetCursorScreenPos();
         float th = StatsTable(cdl, p, std::min(w, S(380)), stats);
         ImGui::Dummy(ImVec2(w, th + S(20)));
 
         for (const std::string& warn : r.warnings) DrawBanner(Severity::Warning, warn.c_str(), nullptr, w);
         if (!r.backupDir.empty()) {
-            std::string t = "Заменённые и старые файлы сохранены в резервную копию: " + PathUtf8(r.backupDir);
-            if (DrawBanner(Severity::Info, t.c_str(), "Открыть", w)) app.OpenInExplorer(r.backupDir);
+            std::string t = T("Заменённые и старые файлы сохранены в резервную копию: ", "Replaced and old files are saved in the backup: ") +
+                            PathUtf8(r.backupDir);
+            if (DrawBanner(Severity::Info, t.c_str(), T("Открыть", "Open"), w)) app.OpenInExplorer(r.backupDir);
         }
         ImGui::EndChild();
     } else {
-        Heading(dl, ImVec2(x, y), ICON_WARNING_CIRCLE, col::Err, "Установка не удалась");
+        Heading(dl, ImVec2(x, y), ICON_WARNING_CIRCLE, col::Err, T("Установка не удалась", "Installation failed"));
         y += S(42);
-        const char* sub = r.rolledBack ? "Все изменения отменены, папка игры в исходном состоянии." : "Папка игры не изменена.";
+        const char* sub = r.rolledBack ? T("Все изменения отменены, папка игры в исходном состоянии.",
+                                           "All changes were undone, the game folder is as it was.")
+                                       : T("Папка игры не изменена.", "The game folder was not changed.");
         DrawLabel(dl, f.regular, kFontBody, ImVec2(x, y), col::TextDim, sub);
         y += S(40);
         ImGui::SetCursorScreenPos(ImVec2(x, y));
@@ -171,15 +177,18 @@ void DrawDoneScreen(App& app) {
     float by = fy + (footerH - S(36)) * 0.5f;
     float rx = l.origin.x + l.size.x - l.margin;
     ImGui::SetCursorScreenPos(ImVec2(x - S(12), by));
-    if (Button(ICON_FILE_TEXT "  Журнал", ImVec2(S(112), S(36)), ButtonKind::Ghost)) app.OpenLog();
+    if (Button((ICON_FILE_TEXT "  " + std::string(T("Журнал", "Log"))).c_str(), ImVec2(S(112), S(36)), ButtonKind::Ghost)) app.OpenLog();
 
     ImGui::SetCursorScreenPos(ImVec2(rx - S(112), by));
-    if (Button("Закрыть", ImVec2(S(112), S(36)), ButtonKind::Primary)) app.RequestQuit();
+    if (Button(T("Закрыть", "Close"), ImVec2(S(112), S(36)), ButtonKind::Primary)) app.RequestQuit();
     ImGui::SetCursorScreenPos(ImVec2(rx - S(112) - S(8) - S(184), by));
     if (r.ok) {
-        if (Button(ICON_FOLDER_OPEN "  Открыть папку игры", ImVec2(S(184), S(36)), ButtonKind::Secondary)) app.OpenInExplorer(app.target);
+        if (Button((ICON_FOLDER_OPEN "  " + std::string(T("Открыть папку игры", "Open game folder"))).c_str(), ImVec2(S(184), S(36)),
+                   ButtonKind::Secondary))
+            app.OpenInExplorer(app.target);
     } else {
-        if (Button(ICON_ARROW_COUNTER_CLOCKWISE "  Попробовать снова", ImVec2(S(184), S(36)), ButtonKind::Secondary))
+        if (Button((ICON_ARROW_COUNTER_CLOCKWISE "  " + std::string(T("Попробовать снова", "Try again"))).c_str(), ImVec2(S(184), S(36)),
+                   ButtonKind::Secondary))
             app.OpenAnalysis(app.target);
     }
 }

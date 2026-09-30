@@ -13,12 +13,14 @@
 #include "core/discovery.h"
 #include "core/installer.h"
 #include "core/plan.h"
+#include "ui/theme.h"
 
 namespace uf::ui {
 
 inline constexpr UINT WM_APP_WAKE = WM_APP + 1;
 inline constexpr float kTitleBarHeight = 44.f;  // logical px
 inline constexpr float kCaptionButtonWidth = 46.f;  // minimize / close
+inline constexpr float kTitleToolsWidth = 108.f;     // language + theme switches left of them
 inline constexpr float kWindowWidth = 900.f;
 inline constexpr float kWindowHeight = 636.f;
 // Everything is drawn 10% larger than the system DPI alone would give: easier to read.
@@ -63,6 +65,8 @@ public:
     bool analyzing = false;
     Banner analysisBanner;
 
+    bool themeFollowsSystem = true;  // until the user flips the theme switch
+
     InstallProgress progress;
     std::vector<std::string> installLog;
     std::optional<InstallResult> result;
@@ -80,6 +84,9 @@ public:
     void CancelInstall();
     void OpenInExplorer(const fs::path& dir) const;
     void OpenLog() const;
+    void ToggleTheme();
+    void SetLanguage(Lang lang);
+    void OnSystemThemeChanged();  // WM_SETTINGCHANGE "ImmersiveColorSet"
 
 private:
     void StartInstallThread();
@@ -89,6 +96,7 @@ private:
     Args args_;
     bool quit_ = false;
     bool autoInstallPending_ = false;
+    std::optional<Theme> pendingTheme_;  // applied between frames
 
     std::unique_ptr<Discovery> discovery_;
 
@@ -101,6 +109,9 @@ private:
     std::jthread installThread_;
     std::atomic<bool> installing_{false};
 };
+
+// "UltraFuck — установка" / "UltraFuck Setup" for the taskbar.
+std::string WindowTitle();
 
 // Implemented in main_win.cpp: lets the elevated copy take over the single-instance lock.
 void ReleaseInstanceLock();

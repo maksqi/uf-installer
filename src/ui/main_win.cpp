@@ -10,6 +10,7 @@
 
 #include "core/args.h"
 #include "core/elevation.h"
+#include "core/i18n.h"
 #include "core/installer.h"
 #include "core/log.h"
 #include "resource.h"
@@ -77,6 +78,10 @@ LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             SetWindowPos(hwnd, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
             return 0;
         }
+        case WM_SETTINGCHANGE:
+            // Windows switched between the light and the dark app mode.
+            if (g_app && lp && lstrcmpW(reinterpret_cast<LPCWSTR>(lp), L"ImmersiveColorSet") == 0) g_app->OnSystemThemeChanged();
+            break;
         case WM_SYSCOMMAND:
             if ((wp & 0xFFF0) == SC_KEYMENU) return 0;
             break;
@@ -100,7 +105,7 @@ LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 void ApplyWindowChrome(HWND hwnd) {
     MARGINS margins{0, 0, 1, 0};  // keeps the DWM drop shadow on the borderless window
     DwmExtendFrameIntoClientArea(hwnd, &margins);
-    BOOL dark = TRUE;
+    BOOL dark = CurrentTheme() == Theme::Dark;
     DwmSetWindowAttribute(hwnd, 20 /*DWMWA_USE_IMMERSIVE_DARK_MODE*/, &dark, sizeof(dark));
     int corners = 2;  // DWMWCP_ROUND (Windows 11)
     DwmSetWindowAttribute(hwnd, 33 /*DWMWA_WINDOW_CORNER_PREFERENCE*/, &corners, sizeof(corners));
@@ -116,6 +121,11 @@ int Run(HINSTANCE instance) {
     log::Init(GetFolder(Folder::Temp) / L"uf-installer.log");
     log::Info("uf-installer started{}{}", args.elevated ? " (elevated relaunch)" : "", IsProcessElevated() ? " [admin]" : "");
     for (const std::wstring& u : args.unknown) log::Warn("Unknown argument: {}", ToUtf8(u));
+
+    // Language and theme: from the command line (elevated relaunch keeps what the user saw), else from Windows.
+    SetLang(ParseLang(args.lang).value_or(SystemLang()));
+    SetTheme(ParseTheme(args.theme).value_or(SystemTheme()));
+    log::Info("Language {}, theme {}", LangCode(CurrentLang()), ThemeName(CurrentTheme()));
 
     // Screenshot runs are for development and may run next to a normal window.
     if (!args.screenshot && !AcquireInstanceLock(args.elevated)) {
@@ -134,7 +144,7 @@ int Run(HINSTANCE instance) {
     wc.hIconSm = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
                                                GetSystemMetrics(SM_CYSMICON), LR_SHARED));
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = CreateSolidBrush(RGB(13, 15, 20));
+    wc.hbrBackground = CreateSolidBrush(CurrentTheme() == Theme::Dark ? RGB(12, 12, 12) : RGB(255, 255, 255));
     wc.lpszClassName = kWindowClass;
     RegisterClassExW(&wc);
 
@@ -156,7 +166,7 @@ int Run(HINSTANCE instance) {
     int x = args.pos ? args.pos->first : work.left + (work.right - work.left - w) / 2;
     int y = args.pos ? args.pos->second : work.top + (work.bottom - work.top - h) / 2;
 
-    HWND hwnd = CreateWindowExW(WS_EX_APPWINDOW, kWindowClass, L"UltraFuck — установка", WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+    HWND hwnd = CreateWindowExW(WS_EX_APPWINDOW, kWindowClass, ToWide(WindowTitle()).c_str(), WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
                                 x, y, w, h, nullptr, nullptr, instance, nullptr);
     if (!hwnd) return 1;
     ApplyWindowChrome(hwnd);
@@ -165,10 +175,11 @@ int Run(HINSTANCE instance) {
     GetClientRect(hwnd, &client);
     if (!g_device.Create(hwnd, static_cast<UINT>(client.right), static_cast<UINT>(client.bottom))) {
         log::Error("Direct3D 9 is not available");
-        MessageBoxW(nullptr,
-                    L"Не удалось запустить графику (Direct3D 9).\nОбновите драйвер видеокарты и попробуйте снова.\n\n"
-                    L"Лог: %TEMP%\\uf-installer.log",
-                    L"UltraFuck — установка", MB_ICONERROR);
+        std::string text = T("Не удалось запустить графику (Direct3D 9).\nОбновите драйвер видеокарты и попробуйте снова.\n\n"
+                             "Лог: %TEMP%\\uf-installer.log",
+                             "Could not start the graphics (Direct3D 9).\nUpdate the video card driver and try again.\n\n"
+                             "Log: %TEMP%\\uf-installer.log");
+        MessageBoxW(nullptr, ToWide(text).c_str(), ToWide(WindowTitle()).c_str(), MB_ICONERROR);
         return 1;
     }
 
@@ -238,7 +249,8 @@ int Run(HINSTANCE instance) {
         app.Frame();
         ImGui::EndFrame();
         ImGui::Render();
-        g_device.Render(ImGui::GetDrawData(), D3DCOLOR_XRGB(13, 15, 20));
+        ImVec4 bg = ImGui::ColorConvertU32ToFloat4(col::Bg);
+        g_device.Render(ImGui::GetDrawData(), D3DCOLOR_COLORVALUE(bg.x, bg.y, bg.z, 1.f));
         if (args.screenshot && !screenshotTaken && GetTickCount64() - started >= static_cast<ULONGLONG>(args.screenshotDelayMs) &&
             app.ReadyForScreenshot()) {
             screenshotTaken = true;
@@ -251,7 +263,7 @@ int Run(HINSTANCE instance) {
 
     g_app = nullptr;
     ImGui_ImplDX9_Shutdown();
-    ReleaseAppLogos();
+    ReleaseTextures();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
     g_device.Destroy();

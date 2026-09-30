@@ -193,4 +193,9 @@ TEST_CASE("options encoding") {
     CHECK_FALSE(d.toggles[static_cast<std::size_t>(ItemId::Cleo)].has_value());
     CHECK(d.overwriteLibs);
     CHECK_FALSE(d.customFontsDir);
+
+    // "off" is written explicitly: the GUI turns the option on when --opts is empty.
+    Options off;
+    CHECK(EncodeOptions(off) == "ol=0;");
+    CHECK_FALSE(DecodeOptions(EncodeOptions(off)).overwriteLibs);
 }

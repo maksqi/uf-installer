@@ -2,9 +2,13 @@
 
 #include <windows.h>
 #include <commctrl.h>
+#include <dwmapi.h>
 
+#include <format>
 #include <map>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include <imgui_internal.h>
@@ -12,8 +16,78 @@
 #include "core/payload.h"
 #include "resource.h"
 #include "ui/icons.h"
+#include "ui/svg.h"
+#include "ui/widgets.h"
 
 namespace uf::ui {
+
+namespace {
+Theme g_theme = Theme::Dark;
+}  // namespace
+
+Theme CurrentTheme() { return g_theme; }
+
+void SetTheme(Theme theme) {
+    g_theme = theme;
+    using namespace col;
+    if (theme == Theme::Dark) {
+        Bg = IM_COL32(12, 12, 12, 255);
+        Hover = IM_COL32(20, 20, 20, 255);
+        Selected = IM_COL32(26, 26, 26, 255);
+        Line = IM_COL32(36, 36, 36, 255);
+        Control = IM_COL32(64, 64, 64, 255);
+        ControlHover = IM_COL32(110, 110, 110, 255);
+        Text = IM_COL32(240, 240, 240, 255);
+        TextDim = IM_COL32(172, 172, 172, 255);
+        TextFaint = IM_COL32(128, 128, 128, 255);
+        Primary = IM_COL32(255, 255, 255, 255);
+        PrimaryHover = IM_COL32(225, 225, 225, 255);
+        PrimaryActive = IM_COL32(200, 200, 200, 255);
+        OnPrimary = IM_COL32(12, 12, 12, 255);
+        Warn = IM_COL32(230, 170, 70, 255);
+        Err = IM_COL32(236, 92, 92, 255);
+    } else {
+        Bg = IM_COL32(255, 255, 255, 255);
+        Hover = IM_COL32(245, 245, 245, 255);
+        Selected = IM_COL32(236, 236, 236, 255);
+        Line = IM_COL32(228, 228, 228, 255);
+        Control = IM_COL32(188, 188, 188, 255);
+        ControlHover = IM_COL32(120, 120, 120, 255);
+        Text = IM_COL32(15, 15, 15, 255);
+        TextDim = IM_COL32(80, 80, 80, 255);
+        TextFaint = IM_COL32(118, 118, 118, 255);
+        Primary = IM_COL32(15, 15, 15, 255);
+        PrimaryHover = IM_COL32(50, 50, 50, 255);
+        PrimaryActive = IM_COL32(80, 80, 80, 255);
+        OnPrimary = IM_COL32(255, 255, 255, 255);
+        Warn = IM_COL32(170, 100, 0, 255);
+        Err = IM_COL32(200, 40, 40, 255);
+    }
+}
+
+Theme SystemTheme() {
+    DWORD value = 0, size = sizeof(value);
+    LSTATUS r = RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                             L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &size);
+    return r == ERROR_SUCCESS && value != 0 ? Theme::Light : Theme::Dark;
+}
+
+const char* ThemeName(Theme theme) { return theme == Theme::Light ? "light" : "dark"; }
+
+std::optional<Theme> ParseTheme(std::string_view s) {
+    if (s == "dark") return Theme::Dark;
+    if (s == "light") return Theme::Light;
+    return std::nullopt;
+}
+
+void ApplyTheme(Theme theme, HWND hwnd) {
+    SetTheme(theme);
+    if (ImGui::GetCurrentContext()) ApplyStyle(UiScale());
+    if (hwnd) {
+        BOOL dark = theme == Theme::Dark;
+        DwmSetWindowAttribute(hwnd, 20 /*DWMWA_USE_IMMERSIVE_DARK_MODE*/, &dark, sizeof(dark));
+    }
+}
 
 Fonts& GetFonts() {
     static Fonts fonts;
@@ -53,14 +127,42 @@ ImFont* AddFont(int textId, int iconsId) {
 
 ImVec4 V(ImU32 c) { return ImGui::ColorConvertU32ToFloat4(c); }
 
-// One texture per pixel size (a new one only when the DPI changes).
-std::map<int, std::unique_ptr<ImTextureData>>& LogoCache() {
-    static std::map<int, std::unique_ptr<ImTextureData>> cache;
+// Images drawn with ImGui, by key ("logo:24", "flag:ru:22"): a new one only when the DPI changes.
+std::map<std::string, std::unique_ptr<ImTextureData>>& TextureCache() {
+    static std::map<std::string, std::unique_ptr<ImTextureData>> cache;
     return cache;
 }
 
-// The IDI_APP icon at exactly `px` pixels as BGRA; the shell scales it down from the nearest larger size.
-bool IconPixels(int px, std::vector<std::uint8_t>& bgra) {
+// Straight-alpha RGBA -> registered ImGui texture: the DX9 backend uploads it, and re-uploads it after a device reset.
+std::unique_ptr<ImTextureData> MakeTexture(int w, int h, const std::vector<std::uint8_t>& rgba) {
+    auto tex = std::make_unique<ImTextureData>();
+    tex->Create(ImTextureFormat_RGBA32, w, h);
+    // Pixels use the IM_COL32 packing, which depends on IMGUI_USE_BGRA_PACKED_COLOR.
+    auto* dst = static_cast<ImU32*>(tex->GetPixels());
+    for (std::size_t i = 0; i < static_cast<std::size_t>(w) * h; ++i)
+        dst[i] = IM_COL32(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]);
+    tex->UseColors = true;
+    ImGui::RegisterUserTexture(tex.get());
+    return tex;
+}
+
+// `fill(w, h, rgba)` produces the pixels the first time `key` is asked for.
+template <typename Fill>
+ImTextureData* CachedTexture(const std::string& key, Fill fill) {
+    auto& cache = TextureCache();
+    auto it = cache.find(key);
+    if (it == cache.end()) {
+        int w = 0, h = 0;
+        std::vector<std::uint8_t> rgba;
+        std::unique_ptr<ImTextureData> tex;
+        if (fill(w, h, rgba) && w > 0 && h > 0) tex = MakeTexture(w, h, rgba);
+        it = cache.emplace(key, std::move(tex)).first;
+    }
+    return it->second.get();
+}
+
+// The IDI_APP icon at exactly `px` pixels as RGBA; the shell scales it down from the nearest larger size.
+bool IconPixels(int px, std::vector<std::uint8_t>& rgba) {
     HICON icon = nullptr;
     if (FAILED(LoadIconWithScaleDown(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP), px, px, &icon))) return false;
     ICONINFO ii{};
@@ -73,20 +175,23 @@ bool IconPixels(int px, std::vector<std::uint8_t>& bgra) {
         bi.bmiHeader.biPlanes = 1;
         bi.bmiHeader.biBitCount = 32;
         bi.bmiHeader.biCompression = BI_RGB;
-        bgra.assign(static_cast<std::size_t>(px) * px * 4, 0);
+        rgba.assign(static_cast<std::size_t>(px) * px * 4, 0);
         HDC dc = GetDC(nullptr);
-        ok = ii.hbmColor && GetDIBits(dc, ii.hbmColor, 0, px, bgra.data(), &bi, DIB_RGB_COLORS) == px;
+        ok = ii.hbmColor && GetDIBits(dc, ii.hbmColor, 0, px, rgba.data(), &bi, DIB_RGB_COLORS) == px;
         ReleaseDC(nullptr, dc);
         if (ii.hbmColor) DeleteObject(ii.hbmColor);
         if (ii.hbmMask) DeleteObject(ii.hbmMask);
     }
     DestroyIcon(icon);
     if (!ok) return false;
-    // A low color depth session (e.g. 16-bit RDP) drops the alpha channel: draw the icon opaque then.
+    // GDI gives BGRA. A low color depth session (e.g. 16-bit RDP) drops the alpha channel: draw the icon opaque then.
     bool hasAlpha = false;
-    for (std::size_t i = 3; i < bgra.size() && !hasAlpha; i += 4) hasAlpha = bgra[i] != 0;
+    for (std::size_t i = 0; i < rgba.size(); i += 4) {
+        std::swap(rgba[i], rgba[i + 2]);
+        hasAlpha |= rgba[i + 3] != 0;
+    }
     if (!hasAlpha)
-        for (std::size_t i = 3; i < bgra.size(); i += 4) bgra[i] = 255;
+        for (std::size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
     return true;
 }
 
@@ -105,31 +210,24 @@ void LoadFonts() {
 }
 
 ImTextureData* AppLogo(int px) {
-    auto& cache = LogoCache();
-    auto it = cache.find(px);
-    if (it == cache.end()) {
-        std::unique_ptr<ImTextureData> tex;
-        std::vector<std::uint8_t> bgra;
-        if (px > 0 && IconPixels(px, bgra)) {
-            // The DX9 backend uploads it, and re-uploads it after a device reset.
-            // Pixels use the IM_COL32 packing, which depends on IMGUI_USE_BGRA_PACKED_COLOR.
-            tex = std::make_unique<ImTextureData>();
-            tex->Create(ImTextureFormat_RGBA32, px, px);
-            auto* dst = static_cast<ImU32*>(tex->GetPixels());
-            for (std::size_t i = 0; i < bgra.size() / 4; ++i)
-                dst[i] = IM_COL32(bgra[i * 4 + 2], bgra[i * 4 + 1], bgra[i * 4], bgra[i * 4 + 3]);
-            tex->UseColors = true;
-            ImGui::RegisterUserTexture(tex.get());
-        }
-        it = cache.emplace(px, std::move(tex)).first;
-    }
-    return it->second.get();
+    return CachedTexture(std::format("logo:{}", px), [&](int& w, int& h, std::vector<std::uint8_t>& rgba) {
+        w = h = px;
+        return px > 0 && IconPixels(px, rgba);
+    });
 }
 
-void ReleaseAppLogos() {
-    for (auto& [px, tex] : LogoCache())
+ImTextureData* FlagTexture(Lang lang, int width) {
+    return CachedTexture(std::format("flag:{}:{}", LangCode(lang), width), [&](int& w, int& h, std::vector<std::uint8_t>& rgba) {
+        w = width;
+        int id = lang == Lang::Ru ? IDR_FLAG_RU : lang == Lang::Uk ? IDR_FLAG_UA : IDR_FLAG_GB;
+        return RasterizeSvgResource(id, width, &h, rgba);
+    });
+}
+
+void ReleaseTextures() {
+    for (auto& [key, tex] : TextureCache())
         if (tex) ImGui::UnregisterUserTexture(tex.get());
-    LogoCache().clear();
+    TextureCache().clear();
 }
 
 void ApplyStyle(float scale) {
@@ -172,8 +270,8 @@ void ApplyStyle(float scale) {
     c[ImGuiCol_ScrollbarGrab] = V(col::Line);
     c[ImGuiCol_ScrollbarGrabHovered] = V(col::Control);
     c[ImGuiCol_ScrollbarGrabActive] = V(col::ControlHover);
-    c[ImGuiCol_CheckMark] = V(col::White);
-    c[ImGuiCol_SliderGrab] = V(col::White);
+    c[ImGuiCol_CheckMark] = V(col::Primary);
+    c[ImGuiCol_SliderGrab] = V(col::Primary);
     c[ImGuiCol_Button] = V(col::Hover);
     c[ImGuiCol_ButtonHovered] = V(col::Selected);
     c[ImGuiCol_ButtonActive] = V(col::Line);

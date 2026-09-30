@@ -58,6 +58,10 @@ Args ParseArgs(int argc, wchar_t** argv) {
                 int x = 0, y = 0;
                 if (swscanf_s(v->c_str(), L"%d,%d", &x, &y) == 2) a.pos = {x, y};
             }
+        } else if (s == L"--lang") {
+            if (auto v = next()) a.lang = ToUtf8(*v);
+        } else if (s == L"--theme") {
+            if (auto v = next()) a.theme = ToUtf8(*v);
         } else if (s == L"--json") {
             a.json = true;
         } else if (s == L"--yes" || s == L"-y") {
@@ -85,6 +89,8 @@ std::wstring BuildElevatedParameters(const Args& base, const fs::path& target, c
     if (base.arizonaSettings) p += L" --arizona-settings " + QuoteArg(base.arizonaSettings->native());
     if (base.throttleMs > 0) p += std::format(L" --throttle-ms {}", base.throttleMs);
     if (base.dpiScale > 0) p += std::format(L" --dpi-scale {}", base.dpiScale);
+    if (!base.lang.empty()) p += L" --lang " + QuoteArg(ToWide(base.lang));
+    if (!base.theme.empty()) p += L" --theme " + QuoteArg(ToWide(base.theme));
     return p;
 }
 

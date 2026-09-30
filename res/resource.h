@@ -9,3 +9,7 @@
 #define IDR_FONT_ICONS 203
 #define IDR_FONT_ICONS_BOLD 204
 #define IDR_FONT_MONO 205
+
+#define IDR_FLAG_RU 301
+#define IDR_FLAG_GB 302
+#define IDR_FLAG_UA 303

@@ -48,6 +48,9 @@ try {
     if (-not $NoTests) {
         & ctest --preset $preset
         if ($LASTEXITCODE) { throw 'Tests failed' }
+        # Every T()/F() text needs a Ukrainian entry in src/core/i18n_uk.cpp.
+        & python "$root\tools\i18n_check.py"
+        if ($LASTEXITCODE) { throw 'Ukrainian translation is incomplete' }
     }
     $exe = Join-Path $buildDir 'uf-installer.exe'
     if (Test-Path $exe) {

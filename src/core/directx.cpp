@@ -12,6 +12,7 @@
 #include "core/fsutil.h"
 #include "core/log.h"
 #include "core/pe.h"
+#include "core/i18n.h"
 
 namespace uf {
 
@@ -67,18 +68,20 @@ DxResult InstallDirectX(const fs::path& workDir, const std::function<void(const 
     };
     CreateDirs(workDir);
     fs::path exe = workDir / L"dxwebsetup.exe";
-    say("Скачивание веб-установщика DirectX с сайта Microsoft…");
+    say(T("Скачивание веб-установщика DirectX с сайта Microsoft…", "Downloading the DirectX web installer from Microsoft…"));
     HRESULT hr = URLDownloadToFileW(nullptr, kDxWebSetupUrl, exe.c_str(), 0, nullptr);
     if (FAILED(hr) || !FileExists(exe))
-        return {false, std::format("Не удалось скачать DirectX (ошибка 0x{:08X}). Проверьте интернет или скачайте вручную: {}",
-                                   static_cast<unsigned>(hr), kDxDownloadPage)};
+        return {false, F("Не удалось скачать DirectX (ошибка 0x{:08X}). Проверьте интернет или скачайте вручную: {}",
+                          "Could not download DirectX (error 0x{:08X}). Check the internet connection or download it manually: {}",
+                          static_cast<unsigned>(hr), kDxDownloadPage)};
 
     std::string signer;
     if (!VerifyMicrosoftSignature(exe, &signer))
-        return {false, std::format("Скачанный файл не прошёл проверку подписи Microsoft (подписант: «{}»). Установка отменена.",
-                                   signer.empty() ? "нет" : signer)};
+        return {false, F("Скачанный файл не прошёл проверку подписи Microsoft (подписант: «{}»). Установка отменена.",
+                          "The downloaded file failed the Microsoft signature check (signer: \"{}\"). Installation cancelled.",
+                          signer.empty() ? std::string(T("нет", "none")) : signer)};
 
-    say("Установка DirectX, это может занять несколько минут…");
+    say(T("Установка DirectX, это может занять несколько минут…", "Installing DirectX, this may take a few minutes…"));
     SHELLEXECUTEINFOW sei{};
     sei.cbSize = sizeof(sei);
     sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
@@ -88,7 +91,7 @@ DxResult InstallDirectX(const fs::path& workDir, const std::function<void(const 
     sei.nShow = SW_HIDE;
     if (!ShellExecuteExW(&sei) || !sei.hProcess) {
         DWORD e = GetLastError();
-        return {false, std::format("Не удалось запустить установщик DirectX: {}", Win32ErrorText(e))};
+        return {false, F("Не удалось запустить установщик DirectX: {}", "Could not start the DirectX installer: {}", Win32ErrorText(e))};
     }
     const ULONGLONG deadline = GetTickCount64() + 15ull * 60 * 1000;
     DWORD wait = WAIT_TIMEOUT;
@@ -97,9 +100,12 @@ DxResult InstallDirectX(const fs::path& workDir, const std::function<void(const 
     DWORD code = 1;
     GetExitCodeProcess(sei.hProcess, &code);
     CloseHandle(sei.hProcess);
-    if (wait != WAIT_OBJECT_0) return {false, "Установка DirectX не завершилась вовремя — дождитесь её окончания и запустите установщик снова."};
+    if (wait != WAIT_OBJECT_0)
+        return {false, T("Установка DirectX не завершилась вовремя — дождитесь её окончания и запустите установщик снова.",
+                         "The DirectX installation did not finish in time: wait for it to end and run this installer again.")};
     if (code != 0) log::Warn("dxwebsetup exit code {}", code);
-    return {true, code == 0 ? "DirectX установлен." : std::format("Установщик DirectX завершился с кодом {}.", code)};
+    return {true, code == 0 ? std::string(T("DirectX установлен.", "DirectX installed."))
+                             : F("Установщик DirectX завершился с кодом {}.", "The DirectX installer exited with code {}.", code)};
 }
 
 }  // namespace uf

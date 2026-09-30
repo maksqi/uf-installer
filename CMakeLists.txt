@@ -35,6 +35,8 @@ add_library(uf_core STATIC
     src/core/elevation.cpp
     src/core/fonts.cpp
     src/core/fsutil.cpp
+    src/core/i18n.cpp
+    src/core/i18n_uk.cpp
     src/core/inspect.cpp
     src/core/installer.cpp
     src/core/known.cpp
@@ -58,6 +60,7 @@ add_executable(uf-installer WIN32
     src/ui/main_win.cpp
     src/ui/app.cpp
     src/ui/d3d9_device.cpp
+    src/ui/svg.cpp
     src/ui/theme.cpp
     src/ui/widgets.cpp
     src/ui/screens/common.cpp

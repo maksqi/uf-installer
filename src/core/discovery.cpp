@@ -8,6 +8,7 @@
 #include "core/fsutil.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/i18n.h"
 
 namespace uf {
 
@@ -120,11 +121,11 @@ std::string DescribeSources(std::uint32_t s) {
     std::vector<std::string> parts;
     if (s & kSrcArizona) parts.push_back("Arizona Launcher");
     if (s & kSrcSampRegistry) parts.push_back("SA-MP");
-    if (s & kSrcManual) parts.push_back("выбрано вручную");
-    if (s & kSrcShortcut) parts.push_back("ярлык");
-    if (s & kSrcUninstall) parts.push_back("установленные программы");
-    if (s & (kSrcAppCompat | kSrcMuiCache)) parts.push_back("история запусков");
-    if (s & kSrcDiskScan) parts.push_back("поиск по дискам");
+    if (s & kSrcManual) parts.push_back(T("выбрано вручную", "picked manually"));
+    if (s & kSrcShortcut) parts.push_back(T("ярлык", "shortcut"));
+    if (s & kSrcUninstall) parts.push_back(T("установленные программы", "installed programs"));
+    if (s & (kSrcAppCompat | kSrcMuiCache)) parts.push_back(T("история запусков", "launch history"));
+    if (s & kSrcDiskScan) parts.push_back(T("поиск по дискам", "drive scan"));
     std::string out;
     for (std::size_t i = 0; i < parts.size(); ++i) out += (i ? " · " : "") + parts[i];
     return out;

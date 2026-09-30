@@ -4,7 +4,9 @@
 #include <optional>
 #include <vector>
 
+#include "core/arizona.h"
 #include "core/elevation.h"
+#include "core/i18n.h"
 #include "ui/icons.h"
 #include "ui/screens/screens.h"
 #include "ui/theme.h"
@@ -71,7 +73,7 @@ std::optional<bool> ItemRow(const PlanItem& it, float width) {
     DrawLabel(dl, f.regular, kFontBody, ImVec2(p.x + nameX, ty), dim ? col::TextDim : col::Text, it.title.c_str());
 
     // Right: what will happen (+ shield when it needs administrator rights).
-    std::string action = it.toggleable && !it.enabled ? "пропустить" : v.label;
+    std::string action = it.toggleable && !it.enabled ? T("пропустить", "skip") : v.label;
     if (it.admin && it.enabled) action = std::string(ICON_SHIELD_CHECK " ") + action;
     ImVec2 as = TextSize(f.regular, kFontSmall, action.c_str());
     float ay = ty + (lineH - as.y) * 0.5f;
@@ -106,7 +108,7 @@ void CompactCell(const PlanItem& it, ImVec2 p, float width, float height) {
     DrawLabel(dl, sf, kFontTiny, ImVec2(x, cy - ss.y * 0.5f), col::TextFaint, status.c_str());
 }
 
-std::string FormatMb(std::uint64_t bytes) { return std::format("{:.1f} МБ", bytes / 1048576.0); }
+std::string FormatMb(std::uint64_t bytes) { return F("{:.1f} МБ", "{:.1f} MB", bytes / 1048576.0); }
 
 }  // namespace
 
@@ -121,14 +123,14 @@ void DrawAnalysisScreen(App& app) {
 
     // ---- Header: folder name, what it is, path
     float y = l.top + S(28);
-    std::string title = r && r->arizona ? r->arizonaTitle : PathUtf8(app.target.filename());
+    std::string title = r && r->arizona ? ArizonaTitle(r->arizonaId) : PathUtf8(app.target.filename());
     DrawLabel(dl, f.bold, kFontHeading, ImVec2(x0, y), col::Text, title.c_str());
     y += S(42);
     std::string meta;
     if (r) {
-        meta = r->hasSamp ? "SA-MP " + std::string(SampVersionName(r->samp)) : "SA-MP не найден";
+        meta = r->hasSamp ? "SA-MP " + std::string(SampVersionName(r->samp)) : std::string(T("SA-MP не найден", "SA-MP not found"));
         if (r->arizona) meta += " · Arizona Launcher";
-        if (elevated && app.args().elevated) meta += " · запущено от администратора";
+        if (elevated && app.args().elevated) meta += T(" · запущено от администратора", " · running as administrator");
     }
     std::string path = EllipsizeLeft(f.mono, kFontMono, PathUtf8(app.target), l.size.x - l.margin * 2);
     if (!meta.empty()) {
@@ -145,7 +147,7 @@ void DrawAnalysisScreen(App& app) {
         float cy = y + bodyH * 0.38f;
         Spinner(dl, ImVec2(x0 + S(7), cy), S(6.5f), S(1.5f), col::Text);
         DrawLabel(dl, f.regular, kFontBody, ImVec2(x0 + S(24), cy - TextSize(f.regular, kFontBody, "Ag").y * 0.5f), col::TextDim,
-                  "Проверяем, что уже установлено…");
+                  T("Проверяем, что уже установлено…", "Checking what is already installed…"));
         BeginFooter(l, footerH);
         return;
     }
@@ -159,7 +161,7 @@ void DrawAnalysisScreen(App& app) {
     if (!app.analysisBanner.text.empty()) {
         ImGui::Dummy(ImVec2(0, S(6)));
         bool offer = app.analysisBanner.offerWithoutAdmin;
-        if (DrawBanner(app.analysisBanner.severity, app.analysisBanner.text.c_str(), offer ? "Установить без них" : nullptr, rowW) &&
+        if (DrawBanner(app.analysisBanner.severity, app.analysisBanner.text.c_str(), offer ? T("Установить без них", "Install without them") : nullptr, rowW) &&
             offer) {
             ImGui::PopStyleVar();
             ImGui::EndChild();
@@ -179,7 +181,7 @@ void DrawAnalysisScreen(App& app) {
     // Problems first, then the actions in plan order.
     std::stable_partition(changes.begin(), changes.end(), [](const PlanItem* it) { return !it->toggleable; });
     if (!changes.empty()) {
-        SectionTitle("Что будет сделано");
+        SectionTitle(T("Что будет сделано", "What will be done"));
         ImVec2 p = ImGui::GetCursorScreenPos();
         HLine(dl = ImGui::GetWindowDrawList(), p.x, p.x + rowW, p.y, col::Line);
         ImGui::Dummy(ImVec2(0, S(1)));
@@ -187,12 +189,12 @@ void DrawAnalysisScreen(App& app) {
             if (auto t = ItemRow(*it, rowW)) change = std::pair{it->id, *t};
     }
     if (!app.plan.notices.empty()) {
-        SectionTitle("Обратите внимание");
+        SectionTitle(T("Обратите внимание", "Please note"));
         for (const Notice& n : app.plan.notices) DrawBanner(n.severity, n.text.c_str(), nullptr, rowW);
     }
 
     if (!fine.empty()) {
-        SectionTitle("Уже установлено");
+        SectionTitle(T("Уже установлено", "Already installed"));
         const float cellW = rowW * 0.5f, cellH = Px(S(34));
         ImVec2 start = ImGui::GetCursorScreenPos();
         ImDrawList* cdl = ImGui::GetWindowDrawList();
@@ -204,7 +206,7 @@ void DrawAnalysisScreen(App& app) {
         ImGui::Dummy(ImVec2(rowW, rows * cellH));
     }
 
-    SectionTitle("Дополнительно");
+    SectionTitle(T("Дополнительно", "Extra"));
     {
         ImDrawList* cdl = ImGui::GetWindowDrawList();
         ImVec2 p = ImGui::GetCursorScreenPos();
@@ -221,9 +223,11 @@ void DrawAnalysisScreen(App& app) {
         }
         float lineH = TextSize(f.regular, kFontBody, "Ag").y;
         DrawCheckbox(cdl, ImVec2(p.x + S(14), p.y + S(8) + (lineH - S(kMarkSize)) * 0.5f), app.options.overwriteLibs, hovered);
-        DrawLabel(cdl, f.regular, kFontBody, ImVec2(p.x + S(44), p.y + S(8)), col::Text, "Перезаписать все библиотеки MoonLoader");
+        DrawLabel(cdl, f.regular, kFontBody, ImVec2(p.x + S(44), p.y + S(8)), col::Text,
+                  T("Перезаписать все библиотеки MoonLoader", "Overwrite all MoonLoader libraries"));
         DrawLabel(cdl, f.regular, kFontTiny, ImVec2(p.x + S(44), p.y + S(8) + lineH + S(3)), col::TextDim,
-                  "Если скрипт падает из-за старых библиотек. Изменённые файлы сохранятся в резервной копии.");
+                  T("Библиотеки, которые отличаются от комплекта, заменяются. Старые файлы сохранятся в резервной копии.",
+                    "Libraries that differ from the bundled ones are replaced. The old files are kept in the backup."));
     }
     ImGui::Dummy(ImVec2(0, S(12)));
     ImGui::PopStyleVar();
@@ -245,19 +249,21 @@ void DrawAnalysisScreen(App& app) {
         std::string t = EllipsizeRight(f.regular, kFontSmall, std::string(ICON_WARNING_CIRCLE "  ") + plan.blockReason, leftW);
         DrawLabel(dl, f.regular, kFontSmall, ImVec2(x0, cy - lh * 0.5f), col::Err, t.c_str());
     } else if (plan.Empty()) {
-        DrawLabel(dl, f.regular, kFontSmall, ImVec2(x0, cy - lh * 0.5f), col::TextDim, ICON_CHECK "  Всё уже установлено, делать ничего не нужно.");
+        DrawLabel(dl, f.regular, kFontSmall, ImVec2(x0, cy - lh * 0.5f), col::TextDim,
+                  (ICON_CHECK "  " + std::string(T("Всё уже установлено, делать ничего не нужно.", "Everything is installed, nothing to do.")))
+                      .c_str());
     } else {
         std::size_t files = 0;
         for (const FileOp& op : plan.files) files += op.kind == OpKind::Copy;
-        std::string line1 = std::format("Будет записано файлов: {} · {}", files, FormatMb(plan.BytesToWrite()));
-        if (!plan.fonts.empty()) line1 += std::format(" · шрифтов: {}", plan.fonts.size());
+        std::string line1 = F("Будет записано файлов: {} · {}", "Files to write: {} · {}", files, FormatMb(plan.BytesToWrite()));
+        if (!plan.fonts.empty()) line1 += F(" · шрифтов: {}", " · fonts: {}", plan.fonts.size());
         if (plan.directx) line1 += " · DirectX";
         bool twoLines = plan.needsAdmin && !elevated;
         DrawLabel(dl, f.regular, kFontSmall, ImVec2(x0, twoLines ? cy - lh - S(1) : cy - lh * 0.5f), col::Text, line1.c_str());
         if (twoLines) {
             std::string reasons;
             for (const std::string& s : plan.adminReasons) reasons += (reasons.empty() ? "" : ", ") + s;
-            std::string line2 = EllipsizeRight(f.regular, kFontTiny, "Нужны права администратора: " + reasons, leftW);
+            std::string line2 = EllipsizeRight(f.regular, kFontTiny, T("Нужны права администратора: ", "Administrator rights needed: ") + reasons, leftW);
             DrawLabel(dl, f.regular, kFontTiny, ImVec2(x0, cy + S(3)), col::TextDim, line2.c_str());
         }
     }
@@ -266,14 +272,14 @@ void DrawAnalysisScreen(App& app) {
     float rx = l.origin.x + l.size.x - l.margin;
     float by = fy + (footerH - S(36)) * 0.5f;
     ImGui::SetCursorScreenPos(ImVec2(rx - installW - S(8) - backW, by));
-    if (Button("Назад##footer", ImVec2(backW, S(36)), ButtonKind::Secondary)) {
+    if (Button((std::string(T("Назад", "Back")) + "##footer").c_str(), ImVec2(backW, S(36)), ButtonKind::Secondary)) {
         app.BackToSelect();
         return;
     }
     ImGui::SetCursorScreenPos(ImVec2(rx - installW, by));
     bool admin = plan.needsAdmin && !elevated && !app.args().noElevate;
-    const char* label = admin ? ICON_SHIELD_CHECK "  Установить" : "Установить";
-    if (Button(label, ImVec2(installW, S(36)), ButtonKind::Primary, !plan.blocked && !plan.Empty())) app.BeginInstall();
+    std::string label = std::string(admin ? ICON_SHIELD_CHECK "  " : "") + T("Установить", "Install");
+    if (Button(label.c_str(), ImVec2(installW, S(36)), ButtonKind::Primary, !plan.blocked && !plan.Empty())) app.BeginInstall();
 }
 
 }  // namespace uf::ui

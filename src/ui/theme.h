@@ -1,28 +1,36 @@
 #pragma once
+#include <windows.h>
+
 #include <imgui.h>
+
+#include <optional>
+#include <string_view>
+
+#include "core/i18n.h"
 
 namespace uf::ui {
 
-// Monochrome palette: near-black background, white as the only accent.
-// Color is reserved for problems: amber for warnings, red for errors.
+enum class Theme { Dark, Light };
+
+// Monochrome palette: black on white or white on black, the "primary" ink is the only accent.
+// Color is reserved for problems: amber for warnings, red for errors. Filled by SetTheme().
 namespace col {
-inline constexpr ImU32 Bg = IM_COL32(12, 12, 12, 255);
-inline constexpr ImU32 Hover = IM_COL32(20, 20, 20, 255);       // row / button hover
-inline constexpr ImU32 Selected = IM_COL32(26, 26, 26, 255);    // selected row, pressed button
-inline constexpr ImU32 Line = IM_COL32(36, 36, 36, 255);        // hairlines, tracks
-inline constexpr ImU32 Control = IM_COL32(64, 64, 64, 255);     // control outlines
-inline constexpr ImU32 ControlHover = IM_COL32(110, 110, 110, 255);
-inline constexpr ImU32 Text = IM_COL32(240, 240, 240, 255);
-inline constexpr ImU32 TextDim = IM_COL32(172, 172, 172, 255);
-inline constexpr ImU32 TextFaint = IM_COL32(128, 128, 128, 255);
-inline constexpr ImU32 White = IM_COL32(255, 255, 255, 255);
-inline constexpr ImU32 WhiteHover = IM_COL32(225, 225, 225, 255);
-inline constexpr ImU32 WhiteActive = IM_COL32(200, 200, 200, 255);
-inline constexpr ImU32 OnWhite = IM_COL32(12, 12, 12, 255);     // text on white
-inline constexpr ImU32 Warn = IM_COL32(230, 170, 70, 255);
-inline constexpr ImU32 Err = IM_COL32(236, 92, 92, 255);
+inline ImU32 Bg, Hover, Selected;          // background, row / button hover, selected row
+inline ImU32 Line, Control, ControlHover;  // hairlines and tracks, control outlines
+inline ImU32 Text, TextDim, TextFaint;
+inline ImU32 Primary, PrimaryHover, PrimaryActive, OnPrimary;  // main button, checkbox, progress; text on it
+inline ImU32 Warn, Err;
 inline constexpr ImU32 CloseHover = IM_COL32(196, 43, 28, 255);  // Windows 11 close button
 }  // namespace col
+
+Theme CurrentTheme();
+void SetTheme(Theme theme);
+// Light when Windows apps use the light mode (Windows 10+); dark otherwise.
+Theme SystemTheme();
+const char* ThemeName(Theme theme);                    // "dark" / "light"
+std::optional<Theme> ParseTheme(std::string_view s);   // "dark" / "light"
+// Switches the palette, the ImGui style and the window frame (DWM dark mode).
+void ApplyTheme(Theme theme, HWND hwnd);
 
 struct Fonts {
     ImFont* regular = nullptr;  // IBM Plex Sans + Phosphor
@@ -42,8 +50,10 @@ inline constexpr float kFontHeading = 26.f;
 void LoadFonts();
 // The app logo (IDI_APP icon) as a `px` x `px` texture; nullptr if the icon can't be read.
 ImTextureData* AppLogo(int px);
-// Unregisters the logo textures; call after ImGui_ImplDX9_Shutdown().
-void ReleaseAppLogos();
+// The flag of `lang` (Russia / Ukraine / United Kingdom), `width` pixels wide and 4:3; nullptr if it can't be drawn.
+ImTextureData* FlagTexture(Lang lang, int width);
+// Unregisters the logo and flag textures; call after ImGui_ImplDX9_Shutdown().
+void ReleaseTextures();
 // Resets the style to the theme and scales every size for `scale` (DPI).
 void ApplyStyle(float scale);
 

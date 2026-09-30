@@ -28,6 +28,8 @@ struct Args {
     int throttleMs = 0;                     // --throttle-ms <n>
     int failAfter = -1;                     // --fail-after <n>
     std::optional<std::pair<int, int>> pos; // --pos x,y
+    std::string lang;                       // --lang ru|en (default: from Windows)
+    std::string theme;                      // --theme dark|light (default: from Windows)
     bool json = false;                      // --json (CLI)
     bool yes = false;                       // --yes (CLI)
     std::vector<std::wstring> positional;

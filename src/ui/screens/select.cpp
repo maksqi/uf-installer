@@ -1,5 +1,7 @@
 #include <format>
 
+#include "core/arizona.h"
+#include "core/i18n.h"
 #include "core/versions.h"
 #include "payload_manifest.gen.h"
 #include "ui/icons.h"
@@ -15,7 +17,7 @@ namespace {
 constexpr float kColMark = 44.f, kColSamp = 76.f, kColScript = 76.f, kColParts = 236.f, kPadRight = 12.f;
 constexpr float kRowH = 60.f;
 
-// Installed UltraFuck version for the "Скрипт" column ("" if none).
+// Installed UltraFuck version for the script column ("" if none).
 std::string ScriptVersion(const FolderReport& r) {
     if (r.ufExactInstalled) return gen::kScriptVersion;
     for (const UfScript& s : r.ufScripts)
@@ -38,20 +40,21 @@ std::string MissingParts(const FolderReport& r, float maxWidth) {
                           {"CLEO", "CLEO", r.cleo.has_value()},
                           {"SAMPFUNCS", "SF", r.sampfuncs.has_value()},
                           {"MoonLoader", "ML", r.moonloader.has_value()},
-                          {"шрифты", "шрифты", fonts},
+                          {T("шрифты", "fonts"), T("шрифты", "fonts"), fonts},
                           {"DirectX", "DX", r.d3dx9}};
     std::string full, brief;
     int count = 0;
     for (const Part& part : parts) {
         if (part.ok) continue;
-        full += (full.empty() ? "нет " : ", ") + std::string(part.name);
-        brief += (brief.empty() ? "нет " : ", ") + std::string(part.shortName);
+        const char* lead = T("нет ", "missing: ");
+        full += (full.empty() ? lead : ", ") + std::string(part.name);
+        brief += (brief.empty() ? lead : ", ") + std::string(part.shortName);
         ++count;
     }
     ImFont* font = GetFonts().regular;
     if (TextSize(font, kFontSmall, full.c_str()).x <= maxWidth) return full;
     if (TextSize(font, kFontSmall, brief.c_str()).x <= maxWidth) return brief;
-    return std::format("нет {} из {}", count, std::size(parts));
+    return F("нет {} из {}", "{} of {} missing", count, std::size(parts));
 }
 
 void ColumnHeader(ImDrawList* dl, ImVec2 p, float width) {
@@ -59,10 +62,10 @@ void ColumnHeader(ImDrawList* dl, ImVec2 p, float width) {
     float y = p.y;
     float right = p.x + width - S(kPadRight);
     float xParts = right - S(kColParts), xScript = xParts - S(kColScript), xSamp = xScript - S(kColSamp);
-    DrawLabel(dl, f.regular, kFontTiny, ImVec2(p.x + S(kColMark), y), col::TextFaint, "Игра");
+    DrawLabel(dl, f.regular, kFontTiny, ImVec2(p.x + S(kColMark), y), col::TextFaint, T("Игра", "Game"));
     DrawLabel(dl, f.regular, kFontTiny, ImVec2(xSamp, y), col::TextFaint, "SA-MP");
-    DrawLabel(dl, f.regular, kFontTiny, ImVec2(xScript, y), col::TextFaint, "Скрипт");
-    DrawLabel(dl, f.regular, kFontTiny, ImVec2(xParts, y), col::TextFaint, "Компоненты");
+    DrawLabel(dl, f.regular, kFontTiny, ImVec2(xScript, y), col::TextFaint, T("Скрипт", "Script"));
+    DrawLabel(dl, f.regular, kFontTiny, ImVec2(xParts, y), col::TextFaint, T("Компоненты", "Components"));
 }
 
 // Returns 1 on click, 2 on double click.
@@ -92,7 +95,7 @@ int GameRow(const GameEntry& e, bool selected, float width) {
     float nameW = xSamp - x - S(16);
 
     // Name (+ launcher note) and path.
-    std::string title = EllipsizeRight(f.bold, kFontBody, e.title, nameW);
+    std::string title = EllipsizeRight(f.bold, kFontBody, e.arizonaId.empty() ? e.title : ArizonaTitle(e.arizonaId), nameW);
     DrawLabel(dl, f.bold, kFontBody, ImVec2(x, p.y + S(11)), col::Text, title.c_str());
     if (!e.arizonaId.empty()) {
         float tx = x + TextSize(f.bold, kFontBody, title.c_str()).x + S(8);
@@ -105,14 +108,14 @@ int GameRow(const GameEntry& e, bool selected, float width) {
     const FolderReport* r = e.report.get();
     if (!r) {
         Spinner(dl, ImVec2(xParts + S(6), p.y + h * 0.5f), S(5.5f), S(1.5f), col::TextDim);
-        DrawLabel(dl, f.regular, kFontSmall, ImVec2(xParts + S(20), cy), col::TextFaint, "проверяем…");
+        DrawLabel(dl, f.regular, kFontSmall, ImVec2(xParts + S(20), cy), col::TextFaint, T("проверяем…", "checking…"));
         return dbl ? 2 : clicked ? 1 : 0;
     }
     float my = p.y + (h - TextSize(f.mono, kFontSmall, "0").y) * 0.5f;
     if (r->hasSamp)
         DrawLabel(dl, f.mono, kFontSmall, ImVec2(xSamp, my), col::Text, std::string(SampShortName(r->samp)).c_str());
     else
-        DrawLabel(dl, f.regular, kFontSmall, ImVec2(xSamp, cy), col::Warn, "нет");
+        DrawLabel(dl, f.regular, kFontSmall, ImVec2(xSamp, cy), col::Warn, T("нет", "no"));
 
     std::string ver = ScriptVersion(*r);
     bool current = !ver.empty() && (r->ufExactInstalled || CompareDecimalVersions(ver, gen::kScriptVersion) == 0);
@@ -121,7 +124,7 @@ int GameRow(const GameEntry& e, bool selected, float width) {
 
     std::string missing = MissingParts(*r, right - xParts);
     if (missing.empty())
-        DrawLabel(dl, f.regular, kFontSmall, ImVec2(xParts, cy), col::TextDim, "все на месте");
+        DrawLabel(dl, f.regular, kFontSmall, ImVec2(xParts, cy), col::TextDim, T("все на месте", "all in place"));
     else
         DrawLabel(dl, f.regular, kFontSmall, ImVec2(xParts, cy), col::Text, missing.c_str());
     return dbl ? 2 : clicked ? 1 : 0;
@@ -131,9 +134,11 @@ void EmptyState(bool searching, ImVec2 p, float width, float height) {
     Fonts& f = GetFonts();
     ImDrawList* dl = ImGui::GetWindowDrawList();
     float cx = p.x + width * 0.5f, y = p.y + height * 0.32f;
-    const char* title = searching ? "Ищем GTA San Andreas…" : "GTA San Andreas не найдена";
-    const char* text = searching ? "Проверяем лаунчеры, реестр и диски компьютера."
-                                 : "Нажмите «Обзор…» и укажите папку с игрой — ту, где лежит gta_sa.exe.";
+    const char* title = searching ? T("Ищем GTA San Andreas…", "Looking for GTA San Andreas…")
+                                  : T("GTA San Andreas не найдена", "GTA San Andreas not found");
+    const char* text = searching ? T("Проверяем лаунчеры, реестр и диски компьютера.", "Checking launchers, the registry and the drives.")
+                                 : T("Нажмите «Обзор…» и укажите папку с игрой — ту, где лежит gta_sa.exe.",
+                                     "Press \"Browse…\" and select the game folder, the one with gta_sa.exe.");
     if (searching)
         Spinner(dl, ImVec2(cx, y), S(12), S(1.75f), col::Text);
     else {
@@ -157,10 +162,11 @@ void DrawSelectScreen(App& app) {
 
     float x0 = l.origin.x + l.margin;
     float y = l.top + S(28);
-    DrawLabel(dl, f.bold, kFontHeading, ImVec2(x0, y), col::Text, "Куда установить?");
+    DrawLabel(dl, f.bold, kFontHeading, ImVec2(x0, y), col::Text, T("Куда установить?", "Where to install?"));
     y += S(42);
     DrawLabel(dl, f.regular, kFontBody, ImVec2(x0, y), col::TextDim,
-              "Выберите папку с GTA San Andreas. Установщик проверит её и поставит только то, чего не хватает.");
+              T("Выберите папку с GTA San Andreas. Установщик проверит её и поставит только то, чего не хватает.",
+                "Select your GTA San Andreas folder. The installer checks it and adds only what is missing."));
     y += S(44);
 
     float listW = l.size.x - l.margin * 2;
@@ -213,23 +219,25 @@ void DrawSelectScreen(App& app) {
     if (d) {
         if (searching) {
             Spinner(dl, ImVec2(x0 + S(6), cy), S(5.5f), S(1.5f), col::TextDim);
-            std::string status = d->HintsDone() ? std::format("Поиск на дисках · папок: {}", d->DirsScanned()) : "Ищем установленные игры…";
+            std::string status = d->HintsDone() ? F("Поиск на дисках · папок: {}", "Scanning drives · folders: {}", d->DirsScanned())
+                                                : std::string(T("Ищем установленные игры…", "Looking for installed games…"));
             DrawLabel(dl, f.regular, kFontSmall, ImVec2(x0 + S(20), ty), col::TextDim, status.c_str());
             if (d->ScanRunning()) {
                 ImGui::SetCursorScreenPos(ImVec2(x0 + S(20) + TextSize(f.regular, kFontSmall, status.c_str()).x + S(14), ty));
-                if (LinkButton("остановить##scan", kFontSmall, col::TextDim)) d->StopDiskScan();
+                if (LinkButton((std::string(T("остановить", "stop")) + "##scan").c_str(), kFontSmall, col::TextDim)) d->StopDiskScan();
             }
         } else {
-            std::string status = std::format("Найдено: {} · поиск занял {:.1f} с", app.games.size(), d->ScanSeconds());
+            std::string status = F("Найдено: {} · поиск занял {:.1f} с", "Found: {} · search took {:.1f} s", app.games.size(), d->ScanSeconds());
             DrawLabel(dl, f.regular, kFontSmall, ImVec2(x0, ty), col::TextFaint, status.c_str());
         }
     }
     float nextW = S(124), browseW = S(124);
     float rx = l.origin.x + l.size.x - l.margin;
     ImGui::SetCursorScreenPos(ImVec2(rx - nextW - S(8) - browseW, by));
-    if (Button("Обзор…", ImVec2(browseW, S(36)), ButtonKind::Secondary)) app.BrowseFolder();
+    if (Button(T("Обзор…", "Browse…"), ImVec2(browseW, S(36)), ButtonKind::Secondary)) app.BrowseFolder();
     ImGui::SetCursorScreenPos(ImVec2(rx - nextW, by));
-    if (Button("Далее  " ICON_ARROW_RIGHT, ImVec2(nextW, S(36)), ButtonKind::Primary, selected != nullptr) && selected)
+    if (Button((std::string(T("Далее", "Next")) + "  " ICON_ARROW_RIGHT).c_str(), ImVec2(nextW, S(36)), ButtonKind::Primary, selected != nullptr) &&
+        selected)
         app.OpenAnalysis(selected->dir);
 }
 

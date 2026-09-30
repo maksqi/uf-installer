@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <set>
 
+#include "core/i18n.h"
 #include "core/plan.h"
 #include "payload_manifest.gen.h"
 
@@ -34,7 +35,6 @@ FolderReport BareReport() {
 FolderReport FullReport() {
     FolderReport r = BareReport();
     r.loader = LoaderKind::Silent;
-    r.loaderName = "Silent's ASI Loader";
     r.hasHookedVorbis = true;
     r.cleo = AsiInfo{kDir / L"CLEO.asi", "4.3.22", {}};
     r.sampfuncs = AsiInfo{kDir / L"SAMPFUNCS.asi", "5.4.1-final rel.21", "0.3.7-R1"};
@@ -136,7 +136,6 @@ TEST_CASE("Arizona folder: launcher-managed files are never written") {
     FolderReport r = BareReport();
     r.arizona = true;
     r.arizonaId = "arizona";
-    r.arizonaTitle = "Arizona RP";
     r.samp = SampVersion::R3_1;
     r.loader = LoaderKind::Other;
     r.cleo = AsiInfo{kDir / L"cleo.asi", "4.4.0", {}};
@@ -227,6 +226,44 @@ TEST_CASE("only missing library units are added") {
     InstallPlan all = BuildPlan(FullReport(), o);
     CHECK(StateOf(all, ItemId::Libs) == ItemState::Update);
     CHECK(std::all_of(all.files.begin(), all.files.end(), [](const FileOp& f) { return f.mode == CopyMode::Replace; }));
+}
+
+TEST_CASE("overwriting libraries writes only the files that differ from the bundle") {
+    Options o;
+    o.overwriteLibs = true;
+
+    FolderReport same = FullReport();
+    same.payloadFileSame.assign(std::size(gen::kFiles), 1);
+    InstallPlan none = BuildPlan(same, o);
+    CHECK(StateOf(none, ItemId::Libs) == ItemState::Ok);
+    CHECK(none.Empty());
+
+    FolderReport changed = same;
+    std::size_t changedIndex = std::size(gen::kFiles);
+    for (std::size_t i = 0; i < std::size(gen::kFiles) && changedIndex == std::size(gen::kFiles); ++i)
+        if (gen::kFiles[i].comp == Comp::Lib) changedIndex = i;
+    REQUIRE(changedIndex < std::size(gen::kFiles));
+    changed.payloadFileSame[changedIndex] = 0;
+    InstallPlan one = BuildPlan(changed, o);
+    CHECK(StateOf(one, ItemId::Libs) == ItemState::Update);
+    REQUIRE(one.files.size() == 1);
+    CHECK(one.files[0].rel == fs::path(ToWide(gen::kFiles[changedIndex].dest)));
+    CHECK(one.files[0].mode == CopyMode::Replace);
+}
+
+TEST_CASE("plan texts follow the interface language") {
+    SetLang(Lang::En);
+    InstallPlan en = BuildPlan(BareReport(), {});
+    SetLang(Lang::Uk);
+    InstallPlan uk = BuildPlan(BareReport(), {});
+    SetLang(Lang::Ru);
+    InstallPlan ru = BuildPlan(BareReport(), {});
+    CHECK(en.Find(ItemId::Cleo)->status == "not installed");
+    CHECK(uk.Find(ItemId::Cleo)->status == "не встановлено");
+    CHECK(uk.Find(ItemId::Libs)->title == "Бібліотеки MoonLoader");
+    CHECK(ru.Find(ItemId::Cleo)->status == "не установлен");
+    CHECK(en.Hash() == ru.Hash());
+    CHECK(uk.Hash() == ru.Hash());
 }
 
 TEST_CASE("Silent loader without vorbisHooked.dll is repaired") {

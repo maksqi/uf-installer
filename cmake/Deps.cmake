@@ -62,6 +62,17 @@ uf_download(doctest-2.4.12.h
     94029a7d32da24a56249658147dbd2b33ff0b9ed665295cbbaf19aafff5b0ced doctest_h)
 configure_file("${doctest_h}" "${UF_DEPS_INCLUDE}/doctest/doctest.h" COPYONLY)
 
+# nanosvg (SVG parser + rasterizer, headers only): the language flags
+set(NANOSVG_COMMIT 239e102ec2c691f2902e20ace2ed36ee4a35cfe6)
+uf_download(nanosvg-${NANOSVG_COMMIT}.h
+    "https://raw.githubusercontent.com/memononen/nanosvg/${NANOSVG_COMMIT}/src/nanosvg.h"
+    e34fd5d084be106cea972d19ce5d27fd96d17ba89f8d06bdceee058420c8b2b0 nanosvg_h)
+uf_download(nanosvgrast-${NANOSVG_COMMIT}.h
+    "https://raw.githubusercontent.com/memononen/nanosvg/${NANOSVG_COMMIT}/src/nanosvgrast.h"
+    79a9c5f4db19debf9f3a648a1589e96d92854f245a5cb4f3d823f263785234d8 nanosvgrast_h)
+configure_file("${nanosvg_h}" "${UF_DEPS_INCLUDE}/nanosvg/nanosvg.h" COPYONLY)
+configure_file("${nanosvgrast_h}" "${UF_DEPS_INCLUDE}/nanosvg/nanosvgrast.h" COPYONLY)
+
 add_library(imgui STATIC
     "${IMGUI_DIR}/imgui.cpp"
     "${IMGUI_DIR}/imgui_draw.cpp"

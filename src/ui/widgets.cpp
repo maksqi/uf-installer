@@ -88,8 +88,8 @@ bool Button(const char* label, ImVec2 size, ButtonKind kind, bool enabled) {
     ImU32 bg = 0, border = 0, text = col::Text;
     switch (kind) {
         case ButtonKind::Primary:
-            bg = !enabled ? col::Line : held ? col::WhiteActive : hovered ? col::WhiteHover : col::White;
-            text = enabled ? col::OnWhite : col::TextFaint;
+            bg = !enabled ? col::Line : held ? col::PrimaryActive : hovered ? col::PrimaryHover : col::Primary;
+            text = enabled ? col::OnPrimary : col::TextFaint;
             break;
         case ButtonKind::Secondary:
             bg = !enabled ? 0 : held ? col::Selected : hovered ? col::Hover : 0;
@@ -135,9 +135,9 @@ bool LinkButton(const char* label, float fontSize, ImU32 color) {
     bool hovered = ImGui::IsItemHovered();
     if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImU32 c = hovered ? col::White : color ? color : col::Text;
+    ImU32 c = hovered ? col::Primary : color ? color : col::Text;
     DrawLabel(dl, font, fontSize, p, c, shown.c_str());
-    HLine(dl, p.x, p.x + ts.x, p.y + ts.y - S(1), hovered ? col::White : col::Control);
+    HLine(dl, p.x, p.x + ts.x, p.y + ts.y - S(1), hovered ? col::Primary : col::Control);
     return pressed;
 }
 
@@ -163,11 +163,11 @@ void ProgressBar(ImVec2 size, float fraction, bool indeterminate) {
         float w = size.x * 0.22f;
         float x = p.x + std::fmod(t * size.x * 0.55f, size.x + w) - w;
         float x0 = std::max(p.x, x), x1 = std::min(q.x, x + w);
-        if (x1 > x0) dl->AddRectFilled(ImVec2(x0, p.y), ImVec2(x1, q.y), col::White);
+        if (x1 > x0) dl->AddRectFilled(ImVec2(x0, p.y), ImVec2(x1, q.y), col::Primary);
         return;
     }
     float fx = Px(p.x + size.x * std::clamp(fraction, 0.f, 1.f));
-    if (fx > p.x) dl->AddRectFilled(p, ImVec2(fx, q.y), col::White);
+    if (fx > p.x) dl->AddRectFilled(p, ImVec2(fx, q.y), col::Primary);
 }
 
 void DrawCheckbox(ImDrawList* dl, ImVec2 pos, bool checked, bool hovered, bool enabled) {
@@ -175,11 +175,11 @@ void DrawCheckbox(ImDrawList* dl, ImVec2 pos, bool checked, bool hovered, bool e
     ImVec2 p(Px(pos.x), Px(pos.y)), q(p.x + s, p.y + s);
     const float r = S(2.5f);
     if (checked) {
-        dl->AddRectFilled(p, q, !enabled ? col::Control : hovered ? col::WhiteHover : col::White, r);
+        dl->AddRectFilled(p, q, !enabled ? col::Control : hovered ? col::PrimaryHover : col::Primary, r);
         // Check mark drawn as a polyline: crisper than a glyph at this size.
         ImVec2 pts[3] = {ImVec2(p.x + s * 0.24f, p.y + s * 0.52f), ImVec2(p.x + s * 0.43f, p.y + s * 0.70f),
                          ImVec2(p.x + s * 0.77f, p.y + s * 0.32f)};
-        dl->AddPolyline(pts, 3, col::OnWhite, std::max(1.5f, S(1.9f)));
+        dl->AddPolyline(pts, 3, col::OnPrimary, std::max(1.5f, S(1.9f)));
     } else {
         ImU32 border = !enabled ? col::Line : hovered ? col::ControlHover : col::Control;
         dl->AddRect(ImVec2(p.x + 0.5f, p.y + 0.5f), ImVec2(q.x - 0.5f, q.y - 0.5f), border, r, std::max(1.f, S(1.25f)));
@@ -189,9 +189,9 @@ void DrawCheckbox(ImDrawList* dl, ImVec2 pos, bool checked, bool hovered, bool e
 void DrawRadio(ImDrawList* dl, ImVec2 pos, bool selected, bool hovered) {
     const float s = Px(S(kMarkSize));
     ImVec2 c(Px(pos.x) + s * 0.5f, Px(pos.y) + s * 0.5f);
-    ImU32 ring = selected ? col::White : hovered ? col::ControlHover : col::Control;
+    ImU32 ring = selected ? col::Primary : hovered ? col::ControlHover : col::Control;
     dl->AddCircle(c, s * 0.5f - 0.5f, ring, 32, std::max(1.f, S(1.25f)));
-    if (selected) dl->AddCircleFilled(c, s * 0.25f, col::White, 24);
+    if (selected) dl->AddCircleFilled(c, s * 0.25f, col::Primary, 24);
 }
 
 }  // namespace uf::ui

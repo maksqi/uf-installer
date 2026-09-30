@@ -1,4 +1,5 @@
 #include "core/fsutil.h"
+#include "core/i18n.h"
 
 #include <windows.h>
 
@@ -45,7 +46,7 @@ std::string Win32ErrorText(unsigned long code) {
     LocalFree(buf);
     while (!msg.empty() && (msg.back() == L'\n' || msg.back() == L'\r' || msg.back() == L' ' || msg.back() == L'.'))
         msg.pop_back();
-    return std::format("{} (код {})", ToUtf8(msg), code);
+    return F("{} (код {})", "{} (code {})", ToUtf8(msg), code);
 }
 
 std::wstring ExtendedPath(const fs::path& p) {
@@ -173,7 +174,8 @@ void MoveFileRetry(const fs::path& from, const fs::path& to, bool replaceExistin
             Sleep(100u << i);
             continue;
         }
-        throw FsError(e, std::format("Не удалось переместить «{}» → «{}»: {}", PathUtf8(from), PathUtf8(to), Win32ErrorText(e)));
+        throw FsError(e, F("Не удалось переместить «{}» → «{}»: {}", "Could not move \"{}\" to \"{}\": {}", PathUtf8(from), PathUtf8(to),
+                           Win32ErrorText(e)));
     }
 }
 
@@ -188,7 +190,7 @@ void CopyFileRetry(const fs::path& from, const fs::path& to) {
             Sleep(100u << i);
             continue;
         }
-        throw FsError(e, std::format("Не удалось записать «{}»: {}", PathUtf8(to), Win32ErrorText(e)));
+        throw FsError(e, F("Не удалось записать «{}»: {}", "Could not write \"{}\": {}", PathUtf8(to), Win32ErrorText(e)));
     }
 }
 
@@ -206,7 +208,7 @@ std::vector<fs::path> CreateDirs(const fs::path& dir) {
         }
         DWORD e = GetLastError();
         if (e == ERROR_ALREADY_EXISTS && DirExists(*it)) continue;
-        throw FsError(e, std::format("Не удалось создать папку «{}»: {}", PathUtf8(*it), Win32ErrorText(e)));
+        throw FsError(e, F("Не удалось создать папку «{}»: {}", "Could not create the folder \"{}\": {}", PathUtf8(*it), Win32ErrorText(e)));
     }
     return created;
 }

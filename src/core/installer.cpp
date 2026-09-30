@@ -9,6 +9,7 @@
 #include "core/directx.h"
 #include "core/fonts.h"
 #include "core/fsutil.h"
+#include "core/i18n.h"
 #include "core/log.h"
 #include "core/payload.h"
 
@@ -44,7 +45,7 @@ void DeleteIfExists(const fs::path& p) {
     if (!DeleteFileW(ExtendedPath(p).c_str())) {
         DWORD e = GetLastError();
         if (e != ERROR_FILE_NOT_FOUND && e != ERROR_PATH_NOT_FOUND)
-            throw FsError(e, std::format("Не удалось удалить «{}»: {}", PathUtf8(p), Win32ErrorText(e)));
+            throw FsError(e, F("Не удалось удалить «{}»: {}", "Could not delete \"{}\": {}", PathUtf8(p), Win32ErrorText(e)));
     }
 }
 
@@ -113,7 +114,7 @@ TempDir::TempDir() {
             return;
         }
     }
-    throw InstallError(std::format("Не удалось создать временную папку в {}", PathUtf8(base)));
+    throw InstallError(F("Не удалось создать временную папку в {}", "Could not create a temporary folder in {}", PathUtf8(base)));
 }
 
 TempDir::~TempDir() {
@@ -172,38 +173,41 @@ InstallResult RunInstall(const fs::path& gameDir, const InstallPlan& plan, const
     std::optional<TempDir> temp;
     auto staged = [&](std::string_view entry) { return temp->path() / L"stage" / EntryPath(entry); };
 
-    say(std::format("Установка в {}", PathUtf8(gameDir)));
+    say(F("Установка в {}", "Installing to {}", PathUtf8(gameDir)));
     try {
         // ---- Preflight
-        report("Подготовка", "");
+        report(T("Подготовка", "Preparing"), "");
         bool running = false, maybe = false;
         DetectRunningGame(gameDir, &running, &maybe);
-        if (running) throw InstallError("Игра запущена из этой папки — закройте её и повторите установку.");
-        if (!HasGtaExe(gameDir)) throw InstallError("В папке нет gta_sa.exe.");
+        if (running)
+            throw InstallError(T("Игра запущена из этой папки — закройте её и повторите установку.",
+                                 "The game is running from this folder: close it and try again."));
+        if (!HasGtaExe(gameDir)) throw InstallError(T("В папке нет gta_sa.exe.", "The folder has no gta_sa.exe."));
         const std::uint64_t need = plan.BytesToWrite();
         if (auto free = FreeSpace(gameDir); free && *free < need + (16u << 20))
-            throw InstallError(std::format("Недостаточно места на диске: нужно ещё {:.1f} МБ.", (need + (16u << 20) - *free) / 1048576.0));
+            throw InstallError(F("Недостаточно места на диске: нужно ещё {:.1f} МБ.", "Not enough disk space: {:.1f} MB more is needed.",
+                                  (need + (16u << 20) - *free) / 1048576.0));
         Payload& payload = Payload::Instance();
         if (!payload.ok()) throw InstallError(payload.error());
         temp.emplace();
-        say(std::format("Распаковка во временную папку {}", PathUtf8(temp->path())));
+        say(F("Распаковка во временную папку {}", "Unpacking to the temporary folder {}", PathUtf8(temp->path())));
 
         // ---- Stage: extract everything we need before touching the game folder
         for (const FileOp& op : plan.files) {
             if (op.kind != OpKind::Copy) continue;
-            if (stop.stop_requested()) throw InstallError("Установка отменена.");
+            if (stop.stop_requested()) throw InstallError(T("Установка отменена.", "Installation cancelled."));
             fs::path out = staged(op.entry);
             payload.Extract(op.entry, out);
-            if (FileSize(out).value_or(0) != op.size) throw InstallError(std::format("Файл {} распакован с ошибкой.", op.entry));
-            tick("Распаковка", PathUtf8(op.rel));
+            if (FileSize(out).value_or(0) != op.size) throw InstallError(F("Файл {} распакован с ошибкой.", "File {} was unpacked incorrectly.", op.entry));
+            tick(T("Распаковка", "Unpacking"), PathUtf8(op.rel));
         }
         for (const FontOp& f : plan.fonts) {
             payload.Extract(f.entry, staged(f.entry));
-            tick("Распаковка", f.file);
+            tick(T("Распаковка", "Unpacking"), f.file);
         }
 
         // ---- Commit
-        if (!plan.files.empty() || !plan.dirs.empty()) say("Копирование файлов в папку игры…");
+        if (!plan.files.empty() || !plan.dirs.empty()) say(T("Копирование файлов в папку игры…", "Copying files to the game folder…"));
         for (const fs::path& rel : plan.dirs) {
             auto created = CreateDirs(gameDir / rel);
             res.dirsCreated += static_cast<int>(created.size());
@@ -211,9 +215,9 @@ InstallResult RunInstall(const fs::path& gameDir, const InstallPlan& plan, const
         }
         int committed = 0;
         for (const FileOp& op : plan.files) {
-            if (stop.stop_requested()) throw InstallError("Установка отменена.");
+            if (stop.stop_requested()) throw InstallError(T("Установка отменена.", "Installation cancelled."));
             if (env.failAfter >= 0 && committed >= env.failAfter)
-                throw InstallError(std::format("Тестовый сбой после {} операций (--fail-after).", committed));
+                throw InstallError(F("Тестовый сбой после {} операций (--fail-after).", "Test failure after {} operations (--fail-after).", committed));
             const fs::path dest = gameDir / op.rel;
             const std::string rel = PathUtf8(op.rel);
 
@@ -225,7 +229,7 @@ InstallResult RunInstall(const fs::path& gameDir, const InstallPlan& plan, const
                     MoveFileRetry(dest, bak, false);
                     journal.push_back({JournalEntry::Moved, dest, bak});
                     ++res.movedOld;
-                    say(std::format("Старая версия перенесена в резервную копию: {}", rel));
+                    say(F("Старая версия перенесена в резервную копию: {}", "Old version moved to the backup: {}", rel));
                 }
             } else {
                 const bool exists = FileExists(dest);
@@ -250,39 +254,43 @@ InstallResult RunInstall(const fs::path& gameDir, const InstallPlan& plan, const
                     journal[tmpIndex] = exists ? JournalEntry{} : JournalEntry{JournalEntry::Created, dest, {}};
                     if (exists) {
                         ++res.replaced;
-                        say(std::format("Заменён (старый — в резервной копии): {}", rel));
+                        say(F("Заменён (старый — в резервной копии): {}", "Replaced (the old one is in the backup): {}", rel));
                     } else {
                         ++res.installed;
                     }
                 }
             }
             ++committed;
-            tick("Установка файлов", rel);
+            tick(T("Установка файлов", "Installing files"), rel);
             if (env.throttleMs > 0) Sleep(static_cast<DWORD>(env.throttleMs));
         }
 
         // ---- Verify
         for (const FileOp& op : plan.files)
             if (op.kind == OpKind::Copy && !FileExists(gameDir / op.rel))
-                throw InstallError(std::format("После установки не найден файл {} — возможно, его удалил антивирус.", PathUtf8(op.rel)));
+                throw InstallError(F("После установки не найден файл {} — возможно, его удалил антивирус.",
+                                      "File {} is missing after installation: an antivirus may have deleted it.", PathUtf8(op.rel)));
         for (const fs::path& rel : plan.dirs)
-            if (!DirExists(gameDir / rel)) throw InstallError(std::format("Не удалось создать папку {}", PathUtf8(rel)));
-        say(std::format("Файлы игры: новых {}, заменено {}, уже были {}, старых версий убрано {}.", res.installed, res.replaced,
-                        res.skipped, res.movedOld));
+            if (!DirExists(gameDir / rel)) throw InstallError(F("Не удалось создать папку {}", "Could not create the folder {}", PathUtf8(rel)));
+        say(F("Файлы игры: новых {}, заменено {}, уже были {}, старых версий убрано {}.",
+              "Game files: {} new, {} replaced, {} already there, {} old versions removed.", res.installed, res.replaced, res.skipped,
+              res.movedOld));
     } catch (const std::exception& e) {
         res.error = e.what();
         log::Error("Install failed: {}", res.error);
-        say("Ошибка: " + res.error);
+        say(T("Ошибка: ", "Error: ") + res.error);
         if (!journal.empty() || !createdDirs.empty()) {
-            say("Откат изменений…");
+            say(T("Откат изменений…", "Rolling back the changes…"));
             std::string rollbackErrors = Rollback(journal, createdDirs, backupRoot);
             res.rolledBack = true;
-            if (!rollbackErrors.empty()) res.error += "\nОткат выполнен не полностью:\n" + rollbackErrors;
-            else say("Все изменения отменены, папка игры в исходном состоянии.");
+            if (!rollbackErrors.empty()) res.error += T("\nОткат выполнен не полностью:\n", "\nThe rollback was not complete:\n") + rollbackErrors;
+            else say(T("Все изменения отменены, папка игры в исходном состоянии.", "All changes were undone, the game folder is as it was."));
         }
         if (auto fe = dynamic_cast<const FsError*>(&e); fe && fe->accessDenied())
-            res.error += "\n\nНет доступа к файлу. Запустите установщик от имени администратора или проверьте, не блокирует ли запись "
-                         "антивирус (в Защитнике Windows — «Контролируемый доступ к папкам»).";
+            res.error += T("\n\nНет доступа к файлу. Запустите установщик от имени администратора или проверьте, не блокирует ли запись "
+                           "антивирус (в Защитнике Windows — «Контролируемый доступ к папкам»).",
+                           "\n\nAccess to the file was denied. Run the installer as administrator or check whether an antivirus "
+                           "blocks writing (in Windows Defender: \"Controlled folder access\").");
         res.seconds = elapsed();
         return res;
     }
@@ -293,17 +301,17 @@ InstallResult RunInstall(const fs::path& gameDir, const InstallPlan& plan, const
             try {
                 InstallFontFile(staged(f.entry), env.fontsDir, f.file, f.regName, env.registerFonts);
                 ++res.fontsInstalled;
-                say(std::format("Шрифт установлен: {} ({})", f.file, f.regName));
+                say(F("Шрифт установлен: {} ({})", "Font installed: {} ({})", f.file, f.regName));
             } catch (const std::exception& e) {
-                res.warnings.push_back(std::format("Шрифт {} не установлен: {}", f.file, e.what()));
+                res.warnings.push_back(F("Шрифт {} не установлен: {}", "Font {} was not installed: {}", f.file, e.what()));
                 log::Warn("{}", res.warnings.back());
             }
-            tick("Установка шрифтов", f.file);
+            tick(T("Установка шрифтов", "Installing fonts"), f.file);
         }
         if (res.fontsInstalled && env.registerFonts) BroadcastFontChange();
     }
     if (plan.directx) {
-        if (progress) progress({0.85f, "DirectX", "Скачивание…"});
+        if (progress) progress({0.85f, "DirectX", T("Скачивание…", "Downloading…")});
         DxResult dx = InstallDirectX(temp->path() / L"dx", [&](const std::string& s) {
             say(s);
             if (progress) progress({0.9f, "DirectX", s});
@@ -312,20 +320,23 @@ InstallResult RunInstall(const fs::path& gameDir, const InstallPlan& plan, const
             res.directxInstalled = true;
             say(dx.message);
         } else {
-            res.warnings.push_back(dx.ok ? "Установщик DirectX завершился, но d3dx9_43.dll не появился — перезагрузите ПК и запустите установщик снова."
+            res.warnings.push_back(dx.ok ? std::string(T("Установщик DirectX завершился, но d3dx9_43.dll не появился — перезагрузите ПК и "
+                                                        "запустите установщик снова.",
+                                                        "The DirectX installer finished, but d3dx9_43.dll did not appear: restart "
+                                                        "the PC and run this installer again."))
                                          : dx.message);
         }
     }
 
-    for (const std::string& w : res.warnings) say("Предупреждение: " + w);
+    for (const std::string& w : res.warnings) say(T("Предупреждение: ", "Warning: ") + w);
     if (DirExists(backupRoot)) {
         res.backupDir = backupRoot;
         WriteTextFile(backupRoot / L"install.log", transcript);
     }
     res.ok = true;
     res.seconds = elapsed();
-    if (progress) progress({1.0f, "Готово", ""});
-    say(std::format("Готово за {:.1f} с.", res.seconds));
+    if (progress) progress({1.0f, T("Готово", "Done"), ""});
+    say(F("Готово за {:.1f} с.", "Done in {:.1f} s.", res.seconds));
     return res;
 }
 

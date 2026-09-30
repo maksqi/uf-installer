@@ -9,6 +9,7 @@
 #include "core/directx.h"
 #include "core/fonts.h"
 #include "core/fsutil.h"
+#include "core/i18n.h"
 #include "core/pe.h"
 #include "core/versions.h"
 #include "payload_manifest.gen.h"
@@ -60,7 +61,7 @@ void DetectLoader(const fs::path& d, FolderReport& r) {
     auto size = FileSize(vf);
     if (!size) {
         r.loader = ual.empty() ? LoaderKind::Missing : LoaderKind::Ual;
-        r.loaderName = ual.empty() ? "vorbisFile.dll отсутствует" : ual;
+        r.ualName = ual;
         return;
     }
     auto crc = FileCrc32(vf).value_or(0);
@@ -71,14 +72,7 @@ void DetectLoader(const fs::path& d, FolderReport& r) {
     if (kind == LoaderKind::Silent && !r.hasHookedVorbis) kind = LoaderKind::SilentNoHooked;
     if (kind == LoaderKind::None && !ual.empty()) kind = LoaderKind::Ual;
     r.loader = kind;
-    switch (kind) {
-        case LoaderKind::None: r.loaderName = "не установлен"; break;
-        case LoaderKind::Silent: r.loaderName = "Silent's ASI Loader"; break;
-        case LoaderKind::SilentNoHooked: r.loaderName = "Silent's ASI Loader без vorbisHooked.dll"; break;
-        case LoaderKind::Ual: r.loaderName = ual; break;
-        case LoaderKind::Other: r.loaderName = "сторонний загрузчик (vorbisFile.dll)"; break;
-        case LoaderKind::Missing: r.loaderName = "vorbisFile.dll отсутствует"; break;
-    }
+    if (kind == LoaderKind::Ual) r.ualName = ual;
 }
 
 void DetectUfScripts(const fs::path& d, FolderReport& r) {
@@ -161,6 +155,18 @@ void DetectRunningGame(const fs::path& dir, bool* running, bool* maybe) {
     CloseHandle(snap);
 }
 
+std::string LoaderName(const FolderReport& r) {
+    switch (r.loader) {
+        case LoaderKind::None: return T("не установлен", "not installed");
+        case LoaderKind::Silent: return "Silent's ASI Loader";
+        case LoaderKind::SilentNoHooked: return T("Silent's ASI Loader без vorbisHooked.dll", "Silent's ASI Loader without vorbisHooked.dll");
+        case LoaderKind::Ual: return r.ualName;
+        case LoaderKind::Other: return T("сторонний загрузчик (vorbisFile.dll)", "third-party loader (vorbisFile.dll)");
+        case LoaderKind::Missing: return T("vorbisFile.dll отсутствует", "vorbisFile.dll is missing");
+    }
+    return {};
+}
+
 FolderReport Inspect(const fs::path& dirIn, const InspectOptions& opt) {
     FolderReport r;
     r.dir = CanonicalPath(dirIn);
@@ -213,12 +219,15 @@ FolderReport Inspect(const fs::path& dirIn, const InspectOptions& opt) {
 
     // Payload files / dirs / library units.
     r.payloadFileExists.resize(std::size(gen::kFiles));
+    r.payloadFileSame.resize(std::size(gen::kFiles));
     std::map<std::string, LibUnitState> units;
     for (std::size_t i = 0; i < std::size(gen::kFiles); ++i) {
         const PayloadFile& f = gen::kFiles[i];
         bool exists = FileExists(d / ToWide(f.dest));
         r.payloadFileExists[i] = exists;
         if (f.comp == Comp::Lib) {
+            // Small Lua files: comparing them all takes a few milliseconds.
+            r.payloadFileSame[i] = exists && FileMatches(d / ToWide(f.dest), f.size, f.crc);
             auto [it, inserted] = units.try_emplace(f.unit, LibUnitState{f.unit, false, true});
             it->second.anyPresent |= exists;
             it->second.complete &= exists;
@@ -260,7 +269,6 @@ FolderReport Inspect(const fs::path& dirIn, const InspectOptions& opt) {
             r.arizonaId = *id;
         }
     }
-    if (r.arizona) r.arizonaTitle = ArizonaTitle(r.arizonaId);
 
     r.nonAsciiPath = !IsAscii(d.native());
     r.underProgramFiles = IsUnderProgramFiles(d);

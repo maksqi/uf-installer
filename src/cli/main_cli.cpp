@@ -24,6 +24,8 @@
 #include "core/elevation.h"
 #include "core/fonts.h"
 #include "core/installer.h"
+#include "core/arizona.h"
+#include "core/inspect.h"
 #include "core/log.h"
 #include "core/plan.h"
 #include "payload_manifest.gen.h"
@@ -59,7 +61,7 @@ json ReportJson(const FolderReport& r) {
     j["dir"] = PathUtf8(r.dir);
     j["gta"] = std::string(GtaVersionName(r.gta));
     j["samp"] = r.hasSamp ? std::string(SampVersionName(r.samp)) : "";
-    j["loader"] = r.loaderName;
+    j["loader"] = LoaderName(r);
     j["cleo"] = r.cleo ? r.cleo->version : "";
     j["sampfuncs"] = r.sampfuncs ? r.sampfuncs->version + (r.sampfuncs->target.empty() ? "" : " (" + r.sampfuncs->target + ")") : "";
     j["moonloader"] = r.moonloader ? r.moonloader->version : "";
@@ -114,7 +116,7 @@ json PlanJson(const InstallPlan& p) {
 }
 
 void PrintPlanText(const FolderReport& r, const InstallPlan& p) {
-    Print(std::format("Папка: {}{}", PathUtf8(r.dir), r.arizona ? " [Arizona: " + r.arizonaTitle + "]" : ""));
+    Print(std::format("Папка: {}{}", PathUtf8(r.dir), r.arizona ? " [Arizona: " + ArizonaTitle(r.arizonaId) + "]" : ""));
     for (const PlanItem& it : p.items)
         Print(std::format("  {:<26} {:<8} {}{}{}", it.title, StateName(it.state), it.status,
                           it.toggleable ? (it.enabled ? "  [x]" : "  [ ]") : "", it.admin ? "  (admin)" : ""));
