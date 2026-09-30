@@ -117,7 +117,8 @@ int Run(HINSTANCE instance) {
     log::Info("uf-installer started{}{}", args.elevated ? " (elevated relaunch)" : "", IsProcessElevated() ? " [admin]" : "");
     for (const std::wstring& u : args.unknown) log::Warn("Unknown argument: {}", ToUtf8(u));
 
-    if (!AcquireInstanceLock(args.elevated)) {
+    // Screenshot runs are for development and may run next to a normal window.
+    if (!args.screenshot && !AcquireInstanceLock(args.elevated)) {
         log::Info("Another instance is running - activated it");
         return 0;
     }
@@ -250,6 +251,7 @@ int Run(HINSTANCE instance) {
 
     g_app = nullptr;
     ImGui_ImplDX9_Shutdown();
+    ReleaseAppLogos();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
     g_device.Destroy();

@@ -1,5 +1,14 @@
 #include "ui/theme.h"
 
+#include <windows.h>
+#include <commctrl.h>
+
+#include <map>
+#include <memory>
+#include <vector>
+
+#include <imgui_internal.h>
+
 #include "core/payload.h"
 #include "resource.h"
 #include "ui/IconsFontAwesome6.h"
@@ -42,6 +51,43 @@ ImFont* AddFont(int textId) {
 
 ImVec4 V(ImU32 c) { return ImGui::ColorConvertU32ToFloat4(c); }
 
+// One texture per pixel size (a new one only when the DPI changes).
+std::map<int, std::unique_ptr<ImTextureData>>& LogoCache() {
+    static std::map<int, std::unique_ptr<ImTextureData>> cache;
+    return cache;
+}
+
+// The IDI_APP icon at exactly `px` pixels as BGRA; the shell scales it down from the nearest larger size.
+bool IconPixels(int px, std::vector<std::uint8_t>& bgra) {
+    HICON icon = nullptr;
+    if (FAILED(LoadIconWithScaleDown(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP), px, px, &icon))) return false;
+    ICONINFO ii{};
+    bool ok = false;
+    if (GetIconInfo(icon, &ii)) {
+        BITMAPINFO bi{};
+        bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bi.bmiHeader.biWidth = px;
+        bi.bmiHeader.biHeight = -px;  // top-down
+        bi.bmiHeader.biPlanes = 1;
+        bi.bmiHeader.biBitCount = 32;
+        bi.bmiHeader.biCompression = BI_RGB;
+        bgra.assign(static_cast<std::size_t>(px) * px * 4, 0);
+        HDC dc = GetDC(nullptr);
+        ok = ii.hbmColor && GetDIBits(dc, ii.hbmColor, 0, px, bgra.data(), &bi, DIB_RGB_COLORS) == px;
+        ReleaseDC(nullptr, dc);
+        if (ii.hbmColor) DeleteObject(ii.hbmColor);
+        if (ii.hbmMask) DeleteObject(ii.hbmMask);
+    }
+    DestroyIcon(icon);
+    if (!ok) return false;
+    // A low color depth session (e.g. 16-bit RDP) drops the alpha channel: draw the icon opaque then.
+    bool hasAlpha = false;
+    for (std::size_t i = 3; i < bgra.size() && !hasAlpha; i += 4) hasAlpha = bgra[i] != 0;
+    if (!hasAlpha)
+        for (std::size_t i = 3; i < bgra.size(); i += 4) bgra[i] = 255;
+    return true;
+}
+
 }  // namespace
 
 void LoadFonts() {
@@ -52,6 +98,34 @@ void LoadFonts() {
     if (!f.regular) f.regular = ImGui::GetIO().Fonts->AddFontDefault();
     if (!f.bold) f.bold = f.regular;
     ImGui::GetIO().FontDefault = f.regular;
+}
+
+ImTextureData* AppLogo(int px) {
+    auto& cache = LogoCache();
+    auto it = cache.find(px);
+    if (it == cache.end()) {
+        std::unique_ptr<ImTextureData> tex;
+        std::vector<std::uint8_t> bgra;
+        if (px > 0 && IconPixels(px, bgra)) {
+            // The DX9 backend uploads it, and re-uploads it after a device reset.
+            // Pixels use the IM_COL32 packing, which depends on IMGUI_USE_BGRA_PACKED_COLOR.
+            tex = std::make_unique<ImTextureData>();
+            tex->Create(ImTextureFormat_RGBA32, px, px);
+            auto* dst = static_cast<ImU32*>(tex->GetPixels());
+            for (std::size_t i = 0; i < bgra.size() / 4; ++i)
+                dst[i] = IM_COL32(bgra[i * 4 + 2], bgra[i * 4 + 1], bgra[i * 4], bgra[i * 4 + 3]);
+            tex->UseColors = true;
+            ImGui::RegisterUserTexture(tex.get());
+        }
+        it = cache.emplace(px, std::move(tex)).first;
+    }
+    return it->second.get();
+}
+
+void ReleaseAppLogos() {
+    for (auto& [px, tex] : LogoCache())
+        if (tex) ImGui::UnregisterUserTexture(tex.get());
+    LogoCache().clear();
 }
 
 void ApplyStyle(float scale) {

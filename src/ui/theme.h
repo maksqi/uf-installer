@@ -16,7 +16,6 @@ inline constexpr ImU32 TextFaint = IM_COL32(100, 107, 122, 255);
 inline constexpr ImU32 Accent = IM_COL32(139, 92, 246, 255);
 inline constexpr ImU32 AccentHover = IM_COL32(157, 120, 250, 255);
 inline constexpr ImU32 AccentActive = IM_COL32(118, 72, 226, 255);
-inline constexpr ImU32 Accent2 = IM_COL32(79, 70, 229, 255);
 inline constexpr ImU32 Ok = IM_COL32(34, 197, 94, 255);
 inline constexpr ImU32 Warn = IM_COL32(245, 158, 11, 255);
 inline constexpr ImU32 Err = IM_COL32(239, 68, 68, 255);
@@ -39,6 +38,10 @@ inline constexpr float kFontHeading = 24.f;
 
 // Loads Inter + Font Awesome from the exe resources (once).
 void LoadFonts();
+// The app logo (IDI_APP icon) as a `px` x `px` texture; nullptr if the icon can't be read.
+ImTextureData* AppLogo(int px);
+// Unregisters the logo textures; call after ImGui_ImplDX9_Shutdown().
+void ReleaseAppLogos();
 // Resets the style to the theme and scales every size for `scale` (DPI).
 void ApplyStyle(float scale);
 

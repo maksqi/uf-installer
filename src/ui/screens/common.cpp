@@ -1,6 +1,7 @@
 #include "ui/screens/screens.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "payload_manifest.gen.h"
 #include "ui/IconsFontAwesome6.h"
@@ -83,14 +84,10 @@ void DrawTitleBar(App& app) {
     dl->AddRectFilled(a, b, col::TitleBar);
     dl->AddLine(ImVec2(a.x, b.y - S(0.5f)), ImVec2(b.x, b.y - S(0.5f)), col::Border, S(1));
 
-    // App mark: rounded violet square with "UF".
-    float m = S(24);
-    ImVec2 mp(a.x + S(14), a.y + (h - m) * 0.5f);
-    dl->AddRectFilled(mp, ImVec2(mp.x + m, mp.y + m), col::Accent, S(6));
-    dl->AddRectFilled(ImVec2(mp.x, mp.y + m * 0.5f), ImVec2(mp.x + m, mp.y + m), WithAlpha(col::Accent2, 0.55f), S(6),
-                      ImDrawFlags_RoundCornersBottom);
-    ImVec2 us = TextSize(f.bold, 11.f, "UF");
-    DrawLabel(dl, f.bold, 11.f, ImVec2(mp.x + (m - us.x) * 0.5f, mp.y + (m - us.y) * 0.5f), IM_COL32_WHITE, "UF");
+    // App mark: the logo from the exe icon, pixel-aligned so the texture maps 1:1.
+    int m = static_cast<int>(S(28) + 0.5f);
+    ImVec2 mp(std::floor(a.x + S(12)), std::floor(a.y + (h - m) * 0.5f));
+    if (ImTextureData* logo = AppLogo(m)) dl->AddImage(logo->GetTexRef(), mp, ImVec2(mp.x + m, mp.y + m));
 
     float x = mp.x + m + S(10);
     ImVec2 ts = TextSize(f.bold, kFontBody, "UltraFuck");

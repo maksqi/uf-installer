@@ -1,47 +1,56 @@
-# Renders res/app.ico (rounded violet square with "UF") using System.Drawing.
-# Run once; the resulting .ico is committed.
-param([string]$Out = "$PSScriptRoot\..\res\app.ico")
+# Renders res/app.ico from a square logo image using System.Drawing.
+# Run after changing the logo; the resulting .ico is committed.
+#   .\tools\make_icon.ps1 -Source D:\logo.png
+param(
+    [Parameter(Mandatory)][string]$Source,
+    [string]$Out = "$PSScriptRoot\..\res\app.ico"
+)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-function New-IconPng([int]$size) {
+$sizes = 16, 20, 24, 32, 40, 48, 64, 96, 128, 256
+
+$src = [System.Drawing.Image]::FromFile((Resolve-Path $Source).Path)
+$side = [Math]::Min($src.Width, $src.Height)
+$crop = New-Object System.Drawing.RectangleF (($src.Width - $side) / 2), (($src.Height - $side) / 2), $side, $side
+
+function New-IconPng([int]$size, [System.Drawing.RectangleF]$crop) {
+    # Scale the crop first, then fill a rounded square with it: FillPath is anti-aliased, SetClip is not.
+    $scaled = New-Object System.Drawing.Bitmap $size, $size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $g = [System.Drawing.Graphics]::FromImage($scaled)
+    $g.InterpolationMode = 'HighQualityBicubic'
+    $g.PixelOffsetMode = 'HighQuality'
+    $g.CompositingQuality = 'HighQuality'
+    $attr = New-Object System.Drawing.Imaging.ImageAttributes
+    $attr.SetWrapMode('TileFlipXY')   # no dark fringe along the edges
+    $dest = New-Object System.Drawing.Rectangle 0, 0, $size, $size
+    $g.DrawImage($src, $dest, $crop.X, $crop.Y, $crop.Width, $crop.Height, 'Pixel', $attr)
+    $g.Dispose()
+
     $bmp = New-Object System.Drawing.Bitmap $size, $size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.SmoothingMode = 'AntiAlias'
-    $g.TextRenderingHint = 'AntiAliasGridFit'
+    $g.PixelOffsetMode = 'HighQuality'
     $g.Clear([System.Drawing.Color]::Transparent)
-
-    $r = [Math]::Max(2, [int]($size * 0.22))
-    $rect = New-Object System.Drawing.Rectangle 0, 0, ($size - 1), ($size - 1)
+    $d = [single]($size * 0.44)   # corner radius 22%
     $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $d = $r * 2
-    $path.AddArc($rect.X, $rect.Y, $d, $d, 180, 90)
-    $path.AddArc($rect.Right - $d, $rect.Y, $d, $d, 270, 90)
-    $path.AddArc($rect.Right - $d, $rect.Bottom - $d, $d, $d, 0, 90)
-    $path.AddArc($rect.X, $rect.Bottom - $d, $d, $d, 90, 90)
+    $path.AddArc(0, 0, $d, $d, 180, 90)
+    $path.AddArc($size - $d, 0, $d, $d, 270, 90)
+    $path.AddArc($size - $d, $size - $d, $d, $d, 0, 90)
+    $path.AddArc(0, $size - $d, $d, $d, 90, 90)
     $path.CloseFigure()
-
-    $c1 = [System.Drawing.Color]::FromArgb(255, 139, 92, 246)   # violet
-    $c2 = [System.Drawing.Color]::FromArgb(255, 79, 70, 229)    # indigo
-    $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush $rect, $c1, $c2, 45
+    $brush = New-Object System.Drawing.TextureBrush $scaled
     $g.FillPath($brush, $path)
-
-    $fontSize = [single]($size * 0.42)
-    $font = New-Object System.Drawing.Font 'Segoe UI', $fontSize, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
-    $fmt = New-Object System.Drawing.StringFormat
-    $fmt.Alignment = 'Center'
-    $fmt.LineAlignment = 'Center'
-    $textRect = New-Object System.Drawing.RectangleF 0, ([single]($size * 0.02)), $size, $size
-    $g.DrawString('UF', $font, [System.Drawing.Brushes]::White, $textRect, $fmt)
+    $brush.Dispose(); $g.Dispose(); $scaled.Dispose()
 
     $ms = New-Object System.IO.MemoryStream
     $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
-    $g.Dispose(); $bmp.Dispose()
+    $bmp.Dispose()
     return ,$ms.ToArray()
 }
 
-$sizes = 16, 24, 32, 48, 64, 128, 256
-$pngs = @($sizes | ForEach-Object { ,(New-IconPng $_) })
+$pngs = @($sizes | ForEach-Object { ,(New-IconPng $_ $crop) })
+$src.Dispose()
 
 $fs = [System.IO.File]::Create([System.IO.Path]::GetFullPath($Out))
 $w = New-Object System.IO.BinaryWriter $fs
